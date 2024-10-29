@@ -1,50 +1,74 @@
-# React + TypeScript + Vite
+# Radio App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This project is a radio application built with React and TypeScript, using Vite for the build tool. It integrates Firebase for authentication and other backend services.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React**: A JavaScript library for building user interfaces.
+- **TypeScript**: A typed superset of JavaScript that compiles to plain JavaScript.
+- **Vite**: A build tool that aims to provide a faster and leaner development experience for modern web projects.
+- **Firebase**: A platform developed by Google for creating mobile and web applications.
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+### Prerequisites
 
-- Configure the top-level `parserOptions` property like this:
+Make sure you have the following installed:
 
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+- Node.js
+- npm
+
+### Installation
+
+1. Clone the repository:
+
+    ```bash
+    git clone https://github.com/Aspergillusplay/radio-app.git
+    ```
+
+2. Navigate to the project directory:
+
+    ```bash
+    cd radio-app
+    ```
+
+3. Install the dependencies:
+
+    ```bash
+    npm install
+    ```
+
+### Running the Application
+
+To start the development server, run:
+
+```bash
+npm run dev
 ```
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+## Setting Up Firebase
 
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
+To configure Firebase in your project, you’ll need to add a `Firebase.ts` file in the `src` directory with your Firebase configuration details.
 
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
-```
+1. Visit the Firebase Console and set up a new project or use an existing one.
+
+2. In the project settings, locate the Firebase configuration code (you can find this under Project Settings > General > Your Apps).
+
+3. Create a new file named `Firebase.ts` in the `src` folder, and paste the Firebase configuration code provided by Firebase into this file. For example:
+
+```typescript
+// src/Firebase.ts
+import { initializeApp } from "firebase/app";
+
+const firebaseConfig = {
+  apiKey: "your-api-key",
+  authDomain: "your-auth-domain",
+  projectId: "your-project-id",
+  storageBucket: "your-storage-bucket",
+  messagingSenderId: "your-messaging-sender-id",
+  appId: "your-app-id",
+};
+
+const app = initializeApp(firebaseConfig);
+
+export default app;
