@@ -8,7 +8,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       outDir: 'build',
-      includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png', 'assets/images/*'],
+      includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png', 'assets/images/*', 'components/**/*'],
       manifest: {
         short_name: 'radio-app',
         name: 'My Progressive Web Radio App',
@@ -30,7 +30,7 @@ export default defineConfig({
         background_color: '#ffffff'
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,svg}']
+        globPatterns: ['**/*.{js,css,html,png,svg,tsx,ts,jsx}']
       }
     })
   ],
@@ -40,6 +40,8 @@ export default defineConfig({
       input: {
         main: 'index.html'
       }
-    }
-  }
+    },
+    copyPublicDir: true
+  },
+  publicDir: 'public'
 });
