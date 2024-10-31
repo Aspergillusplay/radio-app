@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-d
 import MusicPlayer from "./components/MusicPlayer";
 import SignUp from "./components/auth/SignUp";
 import SignIn from "./components/auth/SignIn";
-import AuthDetails from "./components/auth/AuthDetails";
+import Header from "./components/Header.tsx";
 
 const App = () => {
     return (
@@ -20,7 +20,7 @@ const App = () => {
 const AppWithAuthDetails = () => {
     return (
         <div>
-            <AuthDetails />
+            <Header />
             <MusicPlayer />
         </div>
     );

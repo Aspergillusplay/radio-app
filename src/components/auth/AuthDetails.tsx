@@ -28,14 +28,24 @@ const AuthDetails = () => {
     }
 
     return (
-        <div>
+        <div className="flex items-center space-x-4">
             {authUser ? (
-                <div>
-                    <h1>Login as {authUser?.email}</h1>
-                    <button onClick={userSignOut}>Logout</button>
+                <div className="flex items-center space-x-2">
+                    <span className="text-gray-700">{authUser?.email}</span>
+                    <button
+                        onClick={userSignOut}
+                        className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700"
+                    >
+                        Logout
+                    </button>
                 </div>
             ) : (
-                <button onClick={() => navigate("/signin")}>Please login</button>
+                <button
+                    onClick={() => navigate("/signin")}
+                    className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                >
+                    Please login
+                </button>
             )}
         </div>
     );
