@@ -7,4 +7,4 @@ module.exports = {
     'sw.js',
   ],
   swDest: 'build/sw.js',
-}
+};

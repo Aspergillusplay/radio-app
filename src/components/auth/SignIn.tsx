@@ -47,34 +47,44 @@ const SignIn = () => {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="Email"
-                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
+                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
                     />
                     <input
                         type="password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Password"
-                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
+                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
                     />
                     <button type="submit"
-                            className="w-full px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700">
+                            className="w-full px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700">
                         Login
                     </button>
                     <button type="button" onClick={() => navigate("/signup")}
-                            className="w-full px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50">
+                            className="w-full px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50">
                         Go to Register
                     </button>
                     <button type="button" onClick={() => navigate("/app")}
-                            className="w-full px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50">
+                            className="w-full px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50">
                         Go to App
                     </button>
-                    <button type="button" onClick={handleGoogleSignIn}
-                            className="w-full px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-500 flex items-center justify-center">
-                        <img src="/icon-google.svg" alt="Google icon" className="w-6 h-6 mr-2" />
-                        Sign in with Google
-                    </button>
-                    {error && <p className="text-red-600">{error}</p>}
                 </form>
+                <hr className="my-6 border-gray-300 w-full"/>
+                <div className="flex justify-evenly">
+                    <button type="button" onClick={handleGoogleSignIn}
+                            className="w-16 h-16 text-white border hover:bg-blue-50 rounded-lg flex items-center justify-center">
+                        <img src="/icon-google.svg" alt="Google icon" className="w-10 h-10"/>
+                    </button>
+                    <button type="button" onClick={handleGoogleSignIn}
+                            className="w-16 h-16 text-white border hover:bg-blue-50 rounded-lg flex items-center justify-center">
+                        <img src="/icon-google.svg" alt="Google icon" className="w-10 h-10"/>
+                    </button>
+                    <button type="button" onClick={handleGoogleSignIn}
+                            className="w-16 h-16 text-white border hover:bg-blue-50 rounded-lg flex items-center justify-center">
+                        <img src="/icon-google.svg" alt="Google icon" className="w-10 h-10"/>
+                    </button>
+                </div>
+                {error && <p className="text-red-600">{error}</p>}
             </div>
         </div>
     );
