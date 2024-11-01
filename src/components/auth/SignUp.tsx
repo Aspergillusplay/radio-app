@@ -1,19 +1,50 @@
-import {useState} from "react";
-import {useNavigate} from "react-router-dom";
-import {auth, signInWithGoogle} from "../../Firebase";
-import {createUserWithEmailAndPassword} from "firebase/auth";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { auth, signInWithGoogle } from "../../Firebase";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 
 const SignUp = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [copyPassword, setCopyPassword] = useState("");
     const [error, setError] = useState<string>("");
+    const [passwordErrors, setPasswordErrors] = useState<string>("");
+    const [touched, setTouched] = useState<boolean>(false);
     const navigate = useNavigate();
+
+    const validatePassword = (password: string) => {
+        const errors = [];
+        if (!/[A-Z]/.test(password)) errors.push("one uppercase letter");
+        if (!/\d/.test(password)) errors.push("one number");
+        if (!/[!@#$%^&*]/.test(password)) errors.push("one special character");
+        if (password.length < 6) errors.push("6 characters long");
+        return errors.length > 0 ? `Must contain at least ${errors.join(", ")}` : "";
+    };
+
+    const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newPassword = e.target.value;
+        setPassword(newPassword);
+        if (touched) {
+            const errors = validatePassword(newPassword);
+            setPasswordErrors(errors);
+        }
+    };
+
+    const handlePasswordBlur = () => {
+        setTouched(true);
+        const errors = validatePassword(password);
+        setPasswordErrors(errors);
+    };
 
     function register(e: React.FormEvent) {
         e.preventDefault();
         if (copyPassword !== password) {
             setError("Passwords do not match");
+            return;
+        }
+        const errors = validatePassword(password);
+        if (errors) {
+            setPasswordErrors(errors);
             return;
         }
         createUserWithEmailAndPassword(auth, email, password)
@@ -58,10 +89,14 @@ const SignUp = () => {
                     <input
                         type="password"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={handlePasswordChange}
+                        onBlur={handlePasswordBlur}
                         placeholder="Password"
                         className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
                     />
+                    {passwordErrors && (
+                        <p className="text-red-600">{passwordErrors}</p>
+                    )}
                     <input
                         type="password"
                         value={copyPassword}

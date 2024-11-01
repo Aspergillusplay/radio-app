@@ -7,10 +7,41 @@ const SignIn = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string>("");
+    const [passwordErrors, setPasswordErrors] = useState<string>("");
+    const [touched, setTouched] = useState<boolean>(false);
     const navigate = useNavigate();
+
+    const validatePassword = (password: string) => {
+        const errors = [];
+        if (!/[A-Z]/.test(password)) errors.push("one uppercase letter");
+        if (!/\d/.test(password)) errors.push("one number");
+        if (!/[!@#$%^&*]/.test(password)) errors.push("one special character");
+        if (password.length < 6) errors.push("6 characters long");
+        return errors.length > 0 ? `Must contain at least ${errors.join(", ")}` : "";
+    };
+
+    const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newPassword = e.target.value;
+        setPassword(newPassword);
+        if (touched) {
+            const errors = validatePassword(newPassword);
+            setPasswordErrors(errors);
+        }
+    };
+
+    const handlePasswordBlur = () => {
+        setTouched(true);
+        const errors = validatePassword(password);
+        setPasswordErrors(errors);
+    };
 
     function login(e: React.FormEvent) {
         e.preventDefault();
+        const errors = validatePassword(password);
+        if (errors) {
+            setPasswordErrors(errors);
+            return;
+        }
         signInWithEmailAndPassword(auth, email, password)
             .then((user) => {
                 console.log(user);
@@ -52,10 +83,14 @@ const SignIn = () => {
                     <input
                         type="password"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={handlePasswordChange}
+                        onBlur={handlePasswordBlur}
                         placeholder="Password"
                         className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
                     />
+                    {passwordErrors && (
+                        <p className="text-red-600">{passwordErrors}</p>
+                    )}
                     <button type="submit"
                             className="w-full px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700">
                         Login
