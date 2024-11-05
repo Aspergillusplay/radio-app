@@ -2,8 +2,14 @@ import bigFm from "./assets/bigFm.png";
 import radioParadise from "./assets/radioParadiswe.jpeg";
 import kexp from "./assets/kexp93.png";
 import radioSwissJazz from "./assets/swissJazz.png";
+import bbfm from "./assets/BBFM.jpg";
 
 export const stations = [
+    {
+        path: "http://stream.bbfm.sk/bbfm320.mp3",
+        name: "BBFM - Naše bystrické rádio",
+        albumArt: bbfm
+    },
     {
         path: "https://stream.bigfm.de/hiphop/mp3-128/",
         name: "BigFM HipHop",

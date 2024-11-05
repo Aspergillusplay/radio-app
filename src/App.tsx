@@ -19,7 +19,7 @@ const App = () => {
 
 const AppWithAuthDetails = () => {
     return (
-        <div>
+        <div className="bg-gray-100">
             <Header />
             <MusicPlayer />
         </div>
