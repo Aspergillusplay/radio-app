@@ -42,6 +42,7 @@ const MusicPlayer = () => {
         localStorage.setItem('player-volume', newVolume.toString());
     }
 
+
     return (
         <div className="flex justify-center items-center flex-col h-screen">
             <div className="text-center bg-[aliceblue] rounded-2xl shadow-[0.3rem_0.3rem_8rem_#2563EB]">
@@ -50,7 +51,7 @@ const MusicPlayer = () => {
                         ref={imgRef}
                         src={stations[station].albumArt}
                         alt={stations[station].name}
-                        className={`rounded-full shadow-[1px_1px_16px_black] ${isPlaying ? 'animate-slow-spin' : ''}`}
+                        className={`h-96 rounded-full shadow-[1px_1px_16px_black] ${isPlaying ? 'animate-slow-spin' : ''}`}
                         style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
                     />
                 </div>
