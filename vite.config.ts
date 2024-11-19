@@ -30,7 +30,20 @@ export default defineConfig({
         background_color: '#ffffff'
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,svg,tsx,ts,jsx}']
+        globPatterns: ['**/*.{js,css,html,png,svg,tsx,ts,jsx}'],
+        runtimeCaching: [
+          {
+            urlPattern: /.*\.mp3/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'mp3-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+              },
+            },
+          },
+        ],
       }
     })
   ],

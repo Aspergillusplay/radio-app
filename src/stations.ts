@@ -1,33 +1,57 @@
-import bigFm from "./assets/bigFm.png";
-import radioParadise from "./assets/radioParadiswe.jpeg";
-import kexp from "./assets/kexp93.png";
-import radioSwissJazz from "./assets/swissJazz.png";
-import bbfm from "./assets/BBFM.jpg";
+import linkinParkLogo from "./assets/linkinpark.jpg";
+import nightwishLogo from "./assets/nightwish.jpg";
+import powerwolfLogo from "./assets/powerwolf.jpg";
+import skilletLogo from "./assets/skillet.jpg";
 
 export const stations = [
     {
-        path: "http://stream.bbfm.sk/bbfm320.mp3",
-        name: "BBFM - Naše bystrické rádio",
-        albumArt: bbfm
+        path: "src/assets/audio/linkinpark/linkin-park-burn-it-down.mp3",
+        name: "Linkin Park - Burn It Down",
+        albumArt: linkinParkLogo
     },
     {
-        path: "https://stream.bigfm.de/hiphop/mp3-128/",
-        name: "BigFM HipHop",
-        albumArt: bigFm
+        path: "src/assets/audio/linkinpark/linkin-park-numb.mp3",
+        name: "Linkin Park - Numb",
+        albumArt: linkinParkLogo
     },
     {
-        path: "https://stream.radioparadise.com/mp3-192",
-        name: "Radio Paradise",
-        albumArt: radioParadise
+        path: "src/assets/audio/linkinpark/linkin-park-in-the-end.mp3",
+        name: "Linkin Park - In The End",
+        albumArt: linkinParkLogo
     },
     {
-        path: "https://kexp-mp3-128.streamguys1.com/kexp128.mp3",
-        name: "KEXP 90.3 FM",
-        albumArt: kexp
+        path: "src/assets/audio/nightwish/Nightwish-Over-The-Hils-And-Far-Away.mp3",
+        name: "Nightwish - Over The Hills And Far Away",
+        albumArt: nightwishLogo
     },
     {
-        path: "https://stream.srg-ssr.ch/m/rsj/mp3_128",
-        name: "Radio Swiss Jazz",
-        albumArt: radioSwissJazz
+        path: "src/assets/audio/powerwolf/Powerwolf-Army Of The Night.mp3",
+        name: "Powerwolf - Army Of The Night",
+        albumArt: powerwolfLogo
     },
-]
+    {
+        path: "src/assets/audio/powerwolf/Powerwolf-Demon`s Are A Girl`s Best Friends.mp3",
+        name: "Powerwolf - Demons Are A Girl's Best Friend",
+        albumArt: powerwolfLogo
+    },
+    {
+        path: "src/assets/audio/powerwolf/Powerwolf-We Drink Your Blood.mp3",
+        name: "Powerwolf - We Drink Your Blood",
+        albumArt: powerwolfLogo
+    },
+    {
+        path: "src/assets/audio/skillet/skillet_-_hero.mp3",
+        name: "Skillet - Hero",
+        albumArt: skilletLogo
+    },
+    {
+        path: "src/assets/audio/skillet/skillet_-_legendary.mp3",
+        name: "Skillet - Legendary",
+        albumArt: skilletLogo
+    },
+    {
+        path: "src/assets/audio/skillet/skillet_-_feel-invincible.mp3",
+        name: "Skillet - Feel Invincible",
+        albumArt: skilletLogo
+    },
+];
