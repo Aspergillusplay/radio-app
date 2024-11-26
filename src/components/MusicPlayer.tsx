@@ -70,14 +70,23 @@ const MusicPlayer = () => {
             imgRef.current.style.animationPlayState = isPlaying ? "running" : "paused";
         }
 
-        if (!isPlaying && currentTrackIndex !== null) {
+        if (isPlaying && currentTrackIndex !== null) {
             try {
                 const response = await fetch(`http://localhost:3000/current-time?trackIndex=${currentTrackIndex}`);
                 const data = await response.json();
                 setElapsedTime(data.elapsedTime);
+
+                if (audioRef.current && audioRef.current.audio.current) {
+                    const audio = audioRef.current.audio.current;
+                    audio.currentTime = data.elapsedTime;
+                    audio.play().catch((err) => console.error("Error during playback:", err));
+                }
             } catch (error) {
                 console.error("Error fetching current time from server:", error);
             }
+        } else if (!isPlaying && audioRef.current && audioRef.current.audio.current) {
+            const audio = audioRef.current.audio.current;
+            setElapsedTime(audio.currentTime);
         }
     };
 
@@ -122,10 +131,14 @@ const MusicPlayer = () => {
                         header={stations[currentTrackIndex].name}
                         volume={volume}
                         onVolumeChange={handleVolumeChange}
-                        autoPlayAfterSrcChange={false}
-                        autoPlay={false}
+                        autoPlayAfterSrcChange={true}
+                        autoPlay={true}
                         listenInterval={1000}
                         onEnded={handleEnded}
+                        showSkipControls={false}
+                        showJumpControls={false}
+                        customAdditionalControls={[]}
+                        customProgressBarSection={[]}
                     />
                 )}
             </div>

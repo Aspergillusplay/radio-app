@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { auth, signInWithGoogle } from "../../Firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import {useState} from "react";
+import {useNavigate} from "react-router-dom";
+import {auth, signInWithGoogle, signInWithFacebook} from "../../Firebase";
+import {createUserWithEmailAndPassword} from "firebase/auth";
 
 const SignUp = () => {
     const [email, setEmail] = useState("");
@@ -13,6 +13,7 @@ const SignUp = () => {
     const navigate = useNavigate();
 
     const validatePassword = (password: string) => {
+        if (!password) return "";
         const errors = [];
         if (!/[A-Z]/.test(password)) errors.push("one uppercase letter");
         if (!/\d/.test(password)) errors.push("one number");
@@ -74,6 +75,24 @@ const SignUp = () => {
             });
     }
 
+    function handleFacebookSignIn() {
+        signInWithFacebook()
+            .then((result) => {
+                console.log(result);
+                navigate("/app");
+            })
+            .catch((error) => {
+                console.log(error);
+                if (error.code === "auth/popup-closed-by-user") {
+                    setError("The popup was closed before completing the sign-in.");
+                } else if (error.code === "auth/account-exists-with-different-credential") {
+                    setError("An account already exists with a different credential.");
+                } else {
+                    setError("Facebook sign-in failed");
+                }
+            });
+    }
+
     return (
         <div className="flex items-center justify-center min-h-screen bg-gray-100">
             <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
@@ -108,14 +127,16 @@ const SignUp = () => {
                             className="w-full px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700">
                         Register
                     </button>
-                    <button type="button" onClick={() => navigate("/signin")}
-                            className="w-full px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50">
-                        Go to Login
-                    </button>
-                    <button type="button" onClick={() => navigate("/app")}
-                            className="w-full px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50">
-                        Go to App
-                    </button>
+                    <div className="flex justify-between">
+                        <button type="button" onClick={() => navigate("/signin")}
+                                className="w-1/2 px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 mr-2">
+                            Go to Login
+                        </button>
+                        <button type="button" onClick={() => navigate("/app")}
+                                className="w-1/2 px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 ml-2">
+                            Go to App
+                        </button>
+                    </div>
                 </form>
                 <hr className="my-6 border-gray-300 w-full"/>
                 <div className="flex justify-evenly">
@@ -123,9 +144,9 @@ const SignUp = () => {
                             className="w-16 h-16 text-white border hover:bg-blue-50 rounded-lg flex items-center justify-center">
                         <img src="/icon-google.svg" alt="Google icon" className="w-10 h-10"/>
                     </button>
-                    <button type="button" onClick={handleGoogleSignIn}
+                    <button type="button" onClick={handleFacebookSignIn}
                             className="w-16 h-16 text-white border hover:bg-blue-50 rounded-lg flex items-center justify-center">
-                        <img src="/icon-google.svg" alt="Google icon" className="w-10 h-10"/>
+                        <img src="/icon-facebook.svg" alt="Facebook icon" className="w-10 h-10"/>
                     </button>
                     <button type="button" onClick={handleGoogleSignIn}
                             className="w-16 h-16 text-white border hover:bg-blue-50 rounded-lg flex items-center justify-center">

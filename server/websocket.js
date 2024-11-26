@@ -35,9 +35,17 @@ export default function setupWebSocket(server, tracks, getNextTrack, getCurrentT
         const currentTime = Date.now();
         const currentTrackStartTime = getCurrentTrackStartTime();
         const currentTrackIndex = getCurrentTrackIndex();
+
+        if (!tracks || tracks.length === 0 || !tracks[currentTrackIndex]) {
+            console.error('Track list is empty or index is out of range.');
+            return;
+        }
+
         const elapsedTime = (currentTime - currentTrackStartTime) / 1000;
+
         if (elapsedTime >= tracks[currentTrackIndex].duration) {
             const nextTrack = getNextTrack();
+
             wss.clients.forEach((client) => {
                 if (client.readyState === client.OPEN) {
                     client.send(JSON.stringify({
