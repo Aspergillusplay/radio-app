@@ -4,6 +4,7 @@ import H5AudioPlayer from "react-h5-audio-player";
 import "react-h5-audio-player/lib/styles.css";
 import { stations } from "../stations";
 
+
 const MusicPlayer = () => {
     const [currentTrackIndex, setCurrentTrackIndex] = useState<number | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -66,13 +67,26 @@ const MusicPlayer = () => {
 
     const handlePlayPause = async (isPlaying: boolean) => {
         setIsPlaying(isPlaying);
+
         if (imgRef.current) {
             imgRef.current.style.animationPlayState = isPlaying ? "running" : "paused";
         }
 
         if (isPlaying && currentTrackIndex !== null) {
             try {
-                const response = await fetch(`http://localhost:3000/current-time?trackIndex=${currentTrackIndex}`);
+                const response = await fetch(`http://localhost:3000/current-time?trackIndex=${currentTrackIndex}`, {
+                    mode: 'cors', // Убедитесь, что CORS настроен.
+                });
+
+                if (!response.ok) {
+                    if (response.status === 400) {
+                        console.error("Invalid track index.");
+                    } else {
+                        console.error(`HTTP error! status: ${response.status}`);
+                    }
+                    return;
+                }
+
                 const data = await response.json();
                 setElapsedTime(data.elapsedTime);
 
@@ -89,6 +103,7 @@ const MusicPlayer = () => {
             setElapsedTime(audio.currentTime);
         }
     };
+
 
     const handleVolumeChange = (e: Event) => {
         const target = e.target as HTMLAudioElement;

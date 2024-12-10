@@ -1,11 +1,29 @@
 import express from 'express';
+import cors from 'cors';
 import setupWebSocket from './websocket.js';
 import fs from 'fs';
 import path from 'path';
 import { parseFile } from 'music-metadata';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = 3000;
+
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type']
+}));
+
+const publicDir = path.join(__dirname, 'public');
+app.use(express.static(publicDir));
+
+if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
+}
 
 async function generateTrackList(directory) {
     const tracks = [];
@@ -35,7 +53,7 @@ async function generateTrackList(directory) {
 }
 
 (async () => {
-    const tracksDirectory = path.resolve('src/assets/audio');
+    const tracksDirectory = path.resolve('public/assets/audio');
     const tracks = await generateTrackList(tracksDirectory);
 
     if (tracks.length === 0) {
@@ -54,4 +72,20 @@ async function generateTrackList(directory) {
         currentTrackStartTime = Date.now();
         return tracks[currentTrackIndex];
     }, () => currentTrackStartTime, () => currentTrackIndex);
+
+    app.get('/current-time', (req, res) => {
+        const trackIndex = parseInt(req.query.trackIndex, 10);
+
+        if (isNaN(trackIndex) || trackIndex < 0 || trackIndex >= tracks.length) {
+            return res.status(400).json({ error: 'Invalid track index' });
+        }
+
+        if (trackIndex !== currentTrackIndex) {
+            return res.status(400).json({ error: 'Track index mismatch' });
+        }
+
+        const elapsedTime = (Date.now() - currentTrackStartTime) / 1000;
+        res.json({ elapsedTime });
+    });
+
 })();

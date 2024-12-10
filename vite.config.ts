@@ -43,7 +43,15 @@ export default defineConfig({
               },
             },
           },
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/assets/images'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'image-cache',
+            },
+          },
         ],
+        cleanupOutdatedCaches: true,
       }
     })
   ],
