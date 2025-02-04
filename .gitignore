@@ -12,6 +12,7 @@ dist
 dist-ssr
 build
 *.local
+.env
 
 # Firebase configuration
 src/Firebase.ts
