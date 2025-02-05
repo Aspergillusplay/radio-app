@@ -1,7 +1,8 @@
-import {useState} from "react";
-import {useNavigate} from "react-router-dom";
-import {auth, signInWithGoogle, signInWithFacebook} from "../../Firebase";
-import {createUserWithEmailAndPassword} from "firebase/auth";
+// SignUp.tsx
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { auth, signInWithGoogle, signInWithFacebook } from "../../Firebase";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 
 const SignUp = () => {
     const [email, setEmail] = useState("");
@@ -49,13 +50,34 @@ const SignUp = () => {
             return;
         }
         createUserWithEmailAndPassword(auth, email, password)
-            .then((user) => {
-                console.log(user);
-                setError("");
-                setEmail("");
-                setPassword("");
-                setCopyPassword("");
-                navigate("/signin");
+            .then((result) => {
+                console.log("Firebase user created:", result);
+                // После успешной регистрации через Firebase получаем firebaseId
+                const firebaseId = result.user.uid;
+
+                // Отправляем запрос на сервер для сохранения пользователя в базе данных
+                fetch("http://localhost:3000/api/users", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ firebaseId }),
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log("User saved in DB:", data);
+                        // Можно сразу авторизовать пользователя или направить его на страницу логина
+                        setError("");
+                        setEmail("");
+                        setPassword("");
+                        setCopyPassword("");
+                        navigate("/signin");
+                    })
+                    .catch((error) => {
+                        console.error("Error saving user in DB:", error);
+                        // В случае ошибки можно либо остановить регистрацию, либо продолжить
+                        navigate("/signin");
+                    });
             })
             .catch((err) => {
                 console.log(err);
@@ -66,8 +88,26 @@ const SignUp = () => {
     function handleGoogleSignIn() {
         signInWithGoogle()
             .then((result) => {
-                console.log(result);
-                navigate("/app");
+                console.log("Firebase Google sign-in:", result);
+                const firebaseId = result.user.uid;
+
+                // Сохраняем пользователя в БД после входа через Google
+                fetch("http://localhost:3000/api/users", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ firebaseId }),
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log("User saved in DB:", data);
+                        navigate("/app");
+                    })
+                    .catch((error) => {
+                        console.error("Error saving user in DB:", error);
+                        navigate("/app");
+                    });
             })
             .catch((error) => {
                 console.log(error);
@@ -78,8 +118,26 @@ const SignUp = () => {
     function handleFacebookSignIn() {
         signInWithFacebook()
             .then((result) => {
-                console.log(result);
-                navigate("/app");
+                console.log("Firebase Facebook sign-in:", result);
+                const firebaseId = result.user.uid;
+
+                // Сохраняем пользователя в БД после входа через Facebook
+                fetch("http://localhost:3000/api/users", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ firebaseId }),
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log("User saved in DB:", data);
+                        navigate("/app");
+                    })
+                    .catch((error) => {
+                        console.error("Error saving user in DB:", error);
+                        navigate("/app");
+                    });
             })
             .catch((error) => {
                 console.log(error);

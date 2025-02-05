@@ -57,17 +57,39 @@ const SignIn = () => {
             });
     }
 
+    // Функция для входа через Google
     function handleGoogleSignIn() {
         signInWithGoogle()
             .then((result) => {
-                console.log(result);
-                navigate("/app");
+                console.log('Firebase auth result:', result);
+                const firebaseId = result.user.uid;
+
+                // Отправляем запрос на сервер для сохранения/создания пользователя в БД
+                fetch('http://localhost:3000/api/users', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ firebaseId })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('User saved in DB:', data);
+                        navigate("/app");
+                    })
+                    .catch((error) => {
+                        console.error('Error saving user in DB:', error);
+                        // Здесь можно решить, как обрабатывать ошибку:
+                        // либо сообщить пользователю, либо продолжить авторизацию без БД и т.д.
+                        navigate("/app");
+                    });
             })
             .catch((error) => {
                 console.log(error);
                 setError("Google sign-in failed");
             });
     }
+
 
     function handleFacebookSignIn() {
         signInWithFacebook()

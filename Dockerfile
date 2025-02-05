@@ -17,4 +17,4 @@ COPY . .
 EXPOSE 3000
 
 # Запускаем сервер, указывая правильный путь к файлу
-CMD ["node", "server/server.js"]
+CMD ["./start.sh"]

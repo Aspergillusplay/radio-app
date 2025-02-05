@@ -1,11 +1,20 @@
+// AuthDetails.tsx
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "../../Firebase";
 import userIcon from "../../assets/user-icon.svg";
 
+interface DbUser {
+    firebaseId: string;
+    role: "USER" | "ADMIN";
+    createdAt?: string;
+    updatedAt?: string;
+}
+
 const AuthDetails = () => {
     const [authUser, setAuthUser] = useState<User | null>(null);
+    const [dbUser, setDbUser] = useState<DbUser | null>(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const navigate = useNavigate();
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -14,8 +23,23 @@ const AuthDetails = () => {
         const listener = onAuthStateChanged(auth, (user) => {
             if (user) {
                 setAuthUser(user);
+                // После получения пользователя из Firebase, получаем дополнительные данные из БД
+                fetch(`http://localhost:3000/api/users/${user.uid}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error("Failed to fetch user from DB");
+                        }
+                        return response.json();
+                    })
+                    .then((data: DbUser) => {
+                        setDbUser(data);
+                    })
+                    .catch((error) => {
+                        console.error("Error fetching DB user:", error);
+                    });
             } else {
                 setAuthUser(null);
+                setDbUser(null);
             }
         });
         return () => listener();
@@ -61,6 +85,11 @@ const AuthDetails = () => {
                         <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
                             <div className="px-4 py-2 text-gray-700">
                                 {authUser.displayName || authUser.email}
+                                {dbUser && (
+                                    <span className="ml-2 text-sm text-gray-500">
+                                        ({dbUser.role})
+                                    </span>
+                                )}
                             </div>
                             <button
                                 onClick={() => navigate("/tracks")}

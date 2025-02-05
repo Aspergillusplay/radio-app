@@ -21,3 +21,7 @@
     animation: slow-spin 9s linear infinite;
     animation-play-state: paused;
 }
+
+.custom-audio-player .rhap_main-controls {
+    @apply ml-8;
+}

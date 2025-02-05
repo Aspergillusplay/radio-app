@@ -1,3 +1,4 @@
+// server/server.js
 import express from 'express';
 import cors from 'cors';
 import setupWebSocket from './websocket.js';
@@ -5,19 +6,30 @@ import fs from 'fs';
 import path from 'path';
 import { parseFile } from 'music-metadata';
 import { fileURLToPath } from 'url';
+import sequelize from './db.js';
+import tracksRoutes from './routes/tracks.js';
+import usersRoutes from './routes/users.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
+// Создаём экземпляр приложения Express сразу
 const app = express();
+
 const port = 3000;
 
+// Настраиваем middleware
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type']
 }));
+app.use(express.json());
 
+// Подключаем маршруты (эти вызовы идут после инициализации app)
+app.use('/api/tracks', tracksRoutes);
+app.use('/api/users', usersRoutes);
+
+// Далее, подключаем статические файлы
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const publicDir = path.join(__dirname, 'public');
 app.use(express.static(publicDir));
 
@@ -25,6 +37,20 @@ if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });
 }
 
+// Функция для подключения к базе данных
+const startDatabase = async () => {
+    try {
+        await sequelize.authenticate();
+        await sequelize.sync();
+        console.log('Database connection established successfully.');
+    } catch (error) {
+        console.error('Unable to connect to the database:', error);
+    }
+};
+
+startDatabase();
+
+// Функция генерации списка треков из файлов (если требуется, либо замените на логику работы с БД)
 async function generateTrackList(directory) {
     const tracks = [];
 
@@ -38,7 +64,6 @@ async function generateTrackList(directory) {
             } else if (file.name.toLowerCase().endsWith('.mp3')) {
                 const metadata = await parseFile(fullPath);
                 const duration = Math.floor(metadata.format.duration);
-
                 tracks.push({
                     path: fullPath,
                     duration: duration,
@@ -67,11 +92,17 @@ async function generateTrackList(directory) {
         console.log(`Server running at http://localhost:${port}`);
     });
 
-    setupWebSocket(server, tracks, () => {
-        currentTrackIndex = (currentTrackIndex + 1) % tracks.length;
-        currentTrackStartTime = Date.now();
-        return tracks[currentTrackIndex];
-    }, () => currentTrackStartTime, () => currentTrackIndex);
+    setupWebSocket(
+        server,
+        tracks,
+        () => {
+            currentTrackIndex = (currentTrackIndex + 1) % tracks.length;
+            currentTrackStartTime = Date.now();
+            return tracks[currentTrackIndex];
+        },
+        () => currentTrackStartTime,
+        () => currentTrackIndex
+    );
 
     app.get('/current-time', (req, res) => {
         const trackIndex = parseInt(req.query.trackIndex, 10);
@@ -87,5 +118,4 @@ async function generateTrackList(directory) {
         const elapsedTime = (Date.now() - currentTrackStartTime) / 1000;
         res.json({ elapsedTime });
     });
-
 })();
