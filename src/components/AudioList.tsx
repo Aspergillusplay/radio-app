@@ -1,28 +1,31 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import {useEffect, useState} from "react";
 import Header from "./Header";
+import {IconButton, Card, CardMedia, CardContent, Typography, Grid} from "@mui/material";
+import FavoriteIcon from "@mui/icons-material/Favorite";
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 
-// Define the interface for an artist
+// Интерфейсы для артиста и трека.
+// Добавляем опциональное поле isLiked для статуса лайка.
 interface IArtist {
     id: number;
     name: string;
     image: string;
 }
 
-// Define the interface for a track
 interface ITrack {
     id: number;
     name: string;
     path: string;
     Artist?: IArtist;
+    isLiked?: boolean;
 }
 
 const AudioList = () => {
-    const navigate = useNavigate();
     const [tracks, setTracks] = useState<ITrack[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>("");
 
+    // Получение списка треков и для каждого — статуса лайка
     useEffect(() => {
         const fetchTracks = async () => {
             try {
@@ -32,10 +35,32 @@ const AudioList = () => {
                 }
                 const data = await response.json();
 
-                // Log to console to ensure data correctness
-                console.log("Fetched tracks data:", data);
+                // Для каждого трека запрашиваем статус лайка
+                const userId = 1; // текущий пользователь (можно заменить на актуальный ID)
+                const tracksWithLikes = await Promise.all(
+                    data.map(async (track: ITrack) => {
+                        try {
+                            const res = await fetch("http://localhost:3000/api/tracks/like/status", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({TrackId: track.id, UserId: userId}),
+                            });
+                            if (!res.ok) {
+                                throw new Error("Failed to fetch like status");
+                            }
+                            const likeData = await res.json();
+                            return {...track, isLiked: likeData.isLiked};
+                        } catch (error) {
+                            console.error(`Error fetching like status for track ${track.id}:`, error);
+                            return {...track, isLiked: false};
+                        }
+                    })
+                );
 
-                setTracks(data);
+                console.log("Fetched tracks with like statuses:", tracksWithLikes);
+                setTracks(tracksWithLikes);
             } catch (err: any) {
                 console.error("Error fetching tracks:", err);
                 setError("Не удалось загрузить список треков");
@@ -47,8 +72,33 @@ const AudioList = () => {
         fetchTracks();
     }, []);
 
-    const handleTrackClick = (index: number) => {
-        navigate(`/app?track=${index}`);
+    // Функция для переключения лайка у конкретного трека
+    const handleLikeToggle = async (index: number) => {
+        const track = tracks[index];
+        const userId = 1; // используем тот же ID пользователя
+        try {
+            let response;
+            if (track.isLiked) {
+                response = await fetch(`http://localhost:3000/api/tracks/like?TrackId=${track.id}&UserId=${userId}`, {
+                    method: "DELETE",
+                });
+            } else {
+                response = await fetch(`http://localhost:3000/api/tracks/like`, {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({TrackId: track.id, UserId: userId}),
+                });
+            }
+            if (!response.ok) {
+                throw new Error("Failed to update like status");
+            }
+            // Обновляем статус лайка в состоянии
+            const updatedTracks = [...tracks];
+            updatedTracks[index].isLiked = !updatedTracks[index].isLiked;
+            setTracks(updatedTracks);
+        } catch (error) {
+            console.error("Error updating like status:", error);
+        }
     };
 
     if (loading) {
@@ -69,38 +119,44 @@ const AudioList = () => {
 
     return (
         <div className="min-h-screen bg-gray-100">
-            <Header />
+            <Header/>
             <main className="container mx-auto p-4">
-                <h1 className="text-3xl font-bold text-gray-800 mb-4">Track list</h1>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Typography variant="h4" component="h1" gutterBottom>
+                    Track list
+                </Typography>
+                <Grid container spacing={4}>
                     {tracks.map((track, index) => {
-                        // Log track name and artist image to ensure they are correct
-                        console.log(`Track Name: ${track.name}, Artist Image: ${track.Artist?.image}`);
-
-                        // Ensure the albumArt path is correct
-                        const albumImagePath = track.Artist?.image ? `/assets/${track.Artist.image}` : "/assets/defaultAlbumArt.jpg";
-                        console.log(`Track ${track.name}: Image path = ${albumImagePath}`);
-
+                        const albumImagePath = track.Artist?.image
+                            ? `/assets/${track.Artist.image}`
+                            : "/assets/defaultAlbumArt.jpg";
                         return (
-                            <div
-                                key={track.id}
-                                className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer"
-                                onClick={() => handleTrackClick(index)}
-                            >
-                                <img
-                                    src={albumImagePath}
-                                    alt={track.name}
-                                    className="w-full h-48 object-cover"
-                                />
-                                <div className="p-4">
-                                    <h2 className="text-lg font-semibold text-gray-800">
-                                        {track.Artist?.name}: {track.name}
-                                    </h2>
-                                </div>
-                            </div>
+                            <Grid item xs={12} sm={6} lg={4} key={track.id}>
+                                <Card className="hover:shadow-lg transition cursor-pointer">
+                                    <CardMedia
+                                        component="img"
+                                        height="200"
+                                        image={albumImagePath}
+                                        alt={track.name}
+                                    />
+                                    <CardContent className="relative flex flex-row justify-between items-center">
+                                        <Typography variant="h6" component="h2">
+                                            {track.Artist?.name}: {track.name}
+                                        </Typography>
+                                        <IconButton
+                                            className="absolute top-0 right-0"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleLikeToggle(index);
+                                            }}
+                                        >
+                                            {track.isLiked ? <FavoriteIcon color="error"/> : <FavoriteBorderIcon/>}
+                                        </IconButton>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
                         );
                     })}
-                </div>
+                </Grid>
             </main>
         </div>
     );
