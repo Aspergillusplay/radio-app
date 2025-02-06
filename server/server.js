@@ -17,7 +17,7 @@ const port = 3000;
 // Настраиваем middleware
 app.use(cors({
     origin: '*',
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'OPTIONS', 'DELETE', 'PUT'],
     allowedHeaders: ['Content-Type']
 }));
 app.use(express.json());

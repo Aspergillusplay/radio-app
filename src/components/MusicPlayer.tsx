@@ -17,6 +17,7 @@ interface ITrack {
     name: string;
     path: string;
     Artist?: IArtist;
+    likes: number;
 }
 
 const MusicPlayer = () => {
@@ -32,9 +33,66 @@ const MusicPlayer = () => {
     const [tracksError, setTracksError] = useState<string>("");
     const [isLiked, setIsLiked] = useState(false);
 
-    const handleLikeToggle = () => {
-        setIsLiked(!isLiked);
+    const handleLikeToggle = async () => {
+        if (currentTrackIndex === null) return;
+
+        const trackId = tracks[currentTrackIndex].id;
+        const userId = 1;
+
+        try {
+            let response;
+            if (isLiked) {
+                response = await fetch(`http://localhost:3000/api/tracks/like?TrackId=${trackId}&UserId=${userId}`, {
+                    method: 'DELETE',
+                });
+            } else {
+                response = await fetch(`http://localhost:3000/api/tracks/like`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({TrackId: trackId, UserId: userId}),
+                });
+            }
+
+            if (!response.ok) {
+                throw new Error('Failed to update like status');
+            }
+
+            setIsLiked(!isLiked);
+        } catch (error) {
+            console.error('Error updating like status:', error);
+        }
     };
+
+
+    useEffect(() => {
+        if (currentTrackIndex !== null) {
+            const trackId = tracks[currentTrackIndex].id;
+            const userId = 1;
+
+            const fetchLikeStatus = async () => {
+                try {
+                    const response = await fetch(`http://localhost:3000/api/tracks/like/status`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({TrackId: trackId, UserId: userId}),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch like status');
+                    }
+
+                    const data = await response.json();
+                    setIsLiked(data.isLiked);
+                } catch (error) {
+                    console.error('Error fetching like status:', error);
+                }
+            };
+
+            fetchLikeStatus();
+        }
+    }, [currentTrackIndex, tracks]);
 
     useEffect(() => {
         const savedVolume = localStorage.getItem("player-volume");

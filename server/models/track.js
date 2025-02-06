@@ -8,7 +8,7 @@ const Track = sequelize.define('Track', {
         allowNull: false,
     },
     path: {
-        type: DataTypes.STRING, // путь к аудиофайлу
+        type: DataTypes.STRING,
         allowNull: false,
     },
     order: {

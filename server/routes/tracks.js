@@ -3,32 +3,48 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
+
 import Track from '../models/track.js';
 import Artist from "../models/artist.js";
+import TrackLike from "../models/likes.js";
 
 const router = express.Router();
 
-// Определяем __dirname для ES-модулей
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Получаем путь к текущей директории (для ESModules)
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
+
+// Папка для хранения загруженных аудиофайлов
+const audioDir = path.join(__dirname, 'public', 'assets', 'audio');
+
+// Убедимся, что папка существует, если нет — создадим её
+if (!fs.existsSync(audioDir)) {
+    fs.mkdirSync(audioDir, { recursive: true });
+}
 
 // Настройка хранилища Multer для сохранения файлов в public/assets/audio
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const uploadPath = path.join(__dirname, '../public/assets/audio');
-        if (!fs.existsSync(uploadPath)) {
-            fs.mkdirSync(uploadPath, { recursive: true });
-        }
-        cb(null, uploadPath);
+    destination: function (req, file, cb) {
+        // Указываем папку для загрузки файлов
+        cb(null, audioDir);
     },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, uniqueSuffix + '-' + file.originalname);
+    filename: function (req, file, cb) {
+        // Указываем, как будут называться файлы
+        cb(null, Date.now() + path.extname(file.originalname)); // уникальное имя файла
     }
 });
 
-const upload = multer({ storage });
+// Настроить multer с этим хранилищем
+const upload = multer({
+    storage: storage,
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/ogg'];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Неверный формат файла'), false);
+        }
+    }
+});
 
 // Маршрут для загрузки аудиофайла
 router.post('/', upload.single('audio'), async (req, res) => {
@@ -37,8 +53,11 @@ router.post('/', upload.single('audio'), async (req, res) => {
             return res.status(400).json({ error: 'Аудиофайл не был предоставлен.' });
         }
 
+        console.log('Загруженный файл:', req.file);
+        console.log('Данные формы:', req.body);
+
         // Формируем путь для доступа к файлу относительно папки public
-        const filePath = `/assets/audio/${req.file.filename}`;
+        const filePath = `assets/audio/${req.file.filename}`;
 
         // Если order не передан, вычисляем его как maxOrder+1
         let order;
@@ -58,6 +77,7 @@ router.post('/', upload.single('audio'), async (req, res) => {
             artistId: req.body.artistId || null, // ID группы (артиста)
         };
 
+        // Создаем новый трек в базе данных
         const newTrack = await Track.create(trackData);
 
         res.status(201).json({
@@ -74,6 +94,7 @@ router.post('/', upload.single('audio'), async (req, res) => {
 router.get('/', async (req, res) => {
     try {
         const tracks = await Track.findAll({
+            order: [['order', 'ASC']], // сортировка по порядку
             include: {
                 model: Artist,
                 attributes: ['id', 'name', 'image'],
@@ -83,6 +104,108 @@ router.get('/', async (req, res) => {
     } catch (error) {
         console.error('Error retrieving tracks:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+router.post('/like', async (req, res) => {
+    const { TrackId, UserId } = req.body;
+
+    if (!UserId) {
+        return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    try {
+        console.log('Received like request:', { TrackId, UserId });
+
+        // Проверяем, не поставил ли пользователь уже лайк
+        const existingLike = await TrackLike.findOne({
+            where: {
+                TrackId,
+                UserId,
+            }
+        });
+
+        if (existingLike) {
+            console.log('User already liked this track:', { TrackId, UserId });
+            return res.status(400).json({ error: 'You already liked this track' });
+        }
+
+        // Создаем новый лайк
+        await TrackLike.create({
+            TrackId,
+            UserId,
+        });
+        console.log('Like created:', { TrackId, UserId });
+
+        // Обновляем количество лайков у трека
+        const track = await Track.findByPk(TrackId);
+        if (!track) {
+            console.log('Track not found:', { TrackId });
+            return res.status(404).json({ error: 'Track not found' });
+        }
+
+        track.likes += 1;
+        await track.save();
+        console.log('Track likes updated:', { TrackId, likes: track.likes });
+
+        res.status(200).json({ message: 'Track liked successfully' });
+    } catch (error) {
+        console.error('Error processing like request:', error);
+        res.status(500).json({ error: 'Something went wrong' });
+    }
+});
+
+// Удалить лайк с трека
+router.delete('/like', async (req, res) => {
+    const { TrackId, UserId } = req.query; // Используем query-параметры
+
+    try {
+        const like = await TrackLike.findOne({
+            where: {
+                TrackId,
+                UserId,
+            }
+        });
+
+        if (!like) {
+            return res.status(400).json({ error: "You haven't liked this track yet" });
+        }
+
+        // Удаляем лайк
+        await like.destroy();
+
+        // Обновляем количество лайков у трека
+        const track = await Track.findByPk(TrackId);
+        if (track) {
+            track.likes = Math.max(0, track.likes - 1);
+            await track.save();
+        }
+
+        res.status(200).json({ message: 'Track unliked successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Something went wrong' });
+    }
+});
+
+
+
+router.post('/like/status', async (req, res) => {
+    const { TrackId, UserId } = req.body;
+
+    try {
+        const existingLike = await TrackLike.findOne({
+            where: {
+                TrackId,
+                UserId,
+            }
+        });
+
+        res.status(200).json({ isLiked: !!existingLike });
+    } catch (error) {
+        console.error('Error fetching like status:', error);
+        res.status(500).json({ error: 'Something went wrong' });
     }
 });
 
