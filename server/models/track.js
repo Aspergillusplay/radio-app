@@ -19,12 +19,19 @@ const Track = sequelize.define('Track', {
         type: DataTypes.INTEGER,
         defaultValue: 0,
     },
+    artistId: {
+        type: DataTypes.INTEGER,
+        references: {
+            model: Artist,
+            key: 'id',
+        },
+    },
 }, {
     timestamps: true,
 });
 
 // Связь с группой исполнителей
-Track.belongsTo(Artist);
-Artist.hasMany(Track);
+Track.belongsTo(Artist, { foreignKey: 'artistId' });
+Artist.hasMany(Track, { foreignKey: 'artistId' });
 
 export default Track;

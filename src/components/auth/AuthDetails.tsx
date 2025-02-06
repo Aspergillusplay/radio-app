@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "../../Firebase";
 import userIcon from "../../assets/user-icon.svg";
+import {Button} from "@mui/material";
 
 interface DbUser {
     firebaseId: string;
@@ -91,18 +92,12 @@ const AuthDetails = () => {
                                     </span>
                                 )}
                             </div>
-                            <button
-                                onClick={() => navigate("/tracks")}
-                                className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100"
-                            >
+                            <Button onClick={() => navigate("/tracks")} className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100">
                                 Track list
-                            </button>
-                            <button
-                                onClick={userSignOut}
-                                className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-red-300 rounded-b-lg"
-                            >
+                            </Button>
+                            <Button onClick={userSignOut} className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-red-300 rounded-b-lg">
                                 Logout
-                            </button>
+                            </Button>
                         </div>
                     )}
                 </div>

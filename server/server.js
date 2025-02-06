@@ -9,10 +9,9 @@ import { fileURLToPath } from 'url';
 import sequelize from './db.js';
 import tracksRoutes from './routes/tracks.js';
 import usersRoutes from './routes/users.js';
+import artistsRoutes from './routes/artists.js';
 
-// Создаём экземпляр приложения Express сразу
 const app = express();
-
 const port = 3000;
 
 // Настраиваем middleware
@@ -23,19 +22,29 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Подключаем маршруты (эти вызовы идут после инициализации app)
-app.use('/api/tracks', tracksRoutes);
-app.use('/api/users', usersRoutes);
-
-// Далее, подключаем статические файлы
+// Определяем __dirname для ES-модулей
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const publicDir = path.join(__dirname, 'public');
-app.use(express.static(publicDir));
 
+// Определяем папку для статики (public) и убеждаемся, что она существует
+const publicDir = path.join(__dirname, 'public');
 if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });
 }
+
+// Создаем вложенную директорию для аудиофайлов: public/assets/audio
+const audioDir = path.join(publicDir, 'assets/audio');
+if (!fs.existsSync(audioDir)) {
+    fs.mkdirSync(audioDir, { recursive: true });
+}
+
+// Подключаем статические файлы
+app.use(express.static(publicDir));
+
+// Подключаем маршруты
+app.use('/api/tracks', tracksRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/artists', artistsRoutes);
 
 // Функция для подключения к базе данных
 const startDatabase = async () => {
