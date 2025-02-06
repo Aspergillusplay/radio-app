@@ -63,7 +63,6 @@ const UploadAudio = () => {
         formData.append("audio", audioFile);
         formData.append("name", trackName);
         formData.append("artistId", selectedArtistId);
-        // order можно не передавать, так как сервер его вычислит
 
         try {
             const response = await fetch("http://localhost:3000/api/tracks", {

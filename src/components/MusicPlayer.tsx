@@ -1,7 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import {useState, useRef, useEffect} from "react";
 import AudioPlayer from "react-h5-audio-player";
 import H5AudioPlayer from "react-h5-audio-player";
 import "react-h5-audio-player/lib/styles.css";
+import {IconButton} from "@mui/material";
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import FavoriteIcon from '@mui/icons-material/Favorite';
 
 interface IArtist {
     id: number;
@@ -27,6 +30,11 @@ const MusicPlayer = () => {
     const [elapsedTime, setElapsedTime] = useState<number | null>(null);
     const [loadingTracks, setLoadingTracks] = useState<boolean>(true);
     const [tracksError, setTracksError] = useState<string>("");
+    const [isLiked, setIsLiked] = useState(false);
+
+    const handleLikeToggle = () => {
+        setIsLiked(!isLiked);
+    };
 
     useEffect(() => {
         const savedVolume = localStorage.getItem("player-volume");
@@ -47,7 +55,7 @@ const MusicPlayer = () => {
                 if (data.length > 0) {
                     setCurrentTrackIndex(0);
                 }
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error("Error fetching tracks:", err);
                 setTracksError("Не удалось загрузить список треков");
             } finally {
@@ -111,7 +119,7 @@ const MusicPlayer = () => {
             try {
                 const response = await fetch(
                     `http://localhost:3000/current-time?trackIndex=${currentTrackIndex}`,
-                    { mode: "cors" }
+                    {mode: "cors"}
                 );
                 if (!response.ok) {
                     if (response.status === 400) {
@@ -194,28 +202,34 @@ const MusicPlayer = () => {
                         src={currentArtistImage}
                         alt={currentArtistName}
                         className={`h-72 w-72 rounded-full shadow-[1px_1px_16px_black] ${isPlaying ? "animate-slow-spin" : ""} sm:h-96 sm:w-96`}
-                        style={{ animationPlayState: isPlaying ? "running" : "paused" }}
+                        style={{animationPlayState: isPlaying ? "running" : "paused"}}
                     />
                 </div>
                 <h2 className="text-xl font-bold mb-4">{`${currentArtistName}: ${currentTrackName}`}</h2>
-                <AudioPlayer
-                    ref={audioRef}
-                    className="custom-audio-player"
-                    style={{ borderBottomRightRadius: "20px", borderBottomLeftRadius: "20px" }}
-                    src={tracks[currentTrackIndex].path}
-                    onPlay={() => handlePlayPause(true)}
-                    onPause={() => handlePlayPause(false)}
-                    volume={volume}
-                    onVolumeChange={handleVolumeChange}
-                    autoPlayAfterSrcChange={true}
-                    autoPlay={true}
-                    listenInterval={1000}
-                    onEnded={handleEnded}
-                    showSkipControls={false}
-                    showJumpControls={false}
-                    customAdditionalControls={[]}
-                    customProgressBarSection={[]}
-                />
+                <div className="flex items-center justify-center">
+                    <AudioPlayer
+                        ref={audioRef}
+                        className="custom-audio-player"
+                        style={{borderBottomRightRadius: "20px", borderBottomLeftRadius: "20px"}}
+                        src={tracks[currentTrackIndex].path}
+                        onPlay={() => handlePlayPause(true)}
+                        onPause={() => handlePlayPause(false)}
+                        volume={volume}
+                        onVolumeChange={handleVolumeChange}
+                        autoPlayAfterSrcChange={true}
+                        autoPlay={true}
+                        listenInterval={1000}
+                        onEnded={handleEnded}
+                        showSkipControls={false}
+                        showJumpControls={false}
+                        customAdditionalControls={[
+                            <IconButton onClick={handleLikeToggle} key="like-button">
+                                {isLiked ? <FavoriteIcon color="error"/> : <FavoriteBorderIcon/>}
+                            </IconButton>
+                        ]}
+                        customProgressBarSection={[]}
+                    />
+                </div>
             </div>
         </div>
     );
