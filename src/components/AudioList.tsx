@@ -130,7 +130,7 @@ const AudioList = () => {
                             ? `/assets/${track.Artist.image}`
                             : "/assets/defaultAlbumArt.jpg";
                         return (
-                            <Grid item xs={12} sm={6} lg={4} key={track.id}>
+                            <Grid item xs={12} sm={6} lg={3} key={track.id}>
                                 <Card className="hover:shadow-lg transition cursor-pointer">
                                     <CardMedia
                                         component="img"
