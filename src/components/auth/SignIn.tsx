@@ -1,7 +1,10 @@
-import {useState} from "react";
-import {useNavigate} from "react-router-dom";
-import {auth, signInWithGoogle, signInWithFacebook} from "../../Firebase";
-import {signInWithEmailAndPassword} from "firebase/auth";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { auth, signInWithGoogle, signInWithFacebook } from "../../Firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { Container, TextField, Button, Typography, Paper, Divider, IconButton } from "@mui/material";
+import GoogleIcon from '@mui/icons-material/Google';
+import FacebookIcon from '@mui/icons-material/Facebook';
 
 const SignIn = () => {
     const [email, setEmail] = useState("");
@@ -57,15 +60,13 @@ const SignIn = () => {
             });
     }
 
-    // Функция для входа через Google
     function handleGoogleSignIn() {
         signInWithGoogle()
             .then((result) => {
                 console.log('Firebase auth result:', result);
                 const firebaseId = result.user.uid;
 
-                // Отправляем запрос на сервер для сохранения/создания пользователя в БД
-                fetch('http://localhost:3000/api/users', {
+                fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -79,8 +80,6 @@ const SignIn = () => {
                     })
                     .catch((error) => {
                         console.error('Error saving user in DB:', error);
-                        // Здесь можно решить, как обрабатывать ошибку:
-                        // либо сообщить пользователю, либо продолжить авторизацию без БД и т.д.
                         navigate("/app");
                     });
             })
@@ -89,7 +88,6 @@ const SignIn = () => {
                 setError("Google sign-in failed");
             });
     }
-
 
     function handleFacebookSignIn() {
         signInWithFacebook()
@@ -110,61 +108,81 @@ const SignIn = () => {
     }
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100">
-            <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-                <h1 className="text-2xl font-bold text-center">Login</h1>
-                <form onSubmit={login} className="space-y-4">
-                    <input
-                        type="email"
+        <Container component="main" maxWidth="xs">
+            <Paper elevation={6} sx={{ p: 4, mt: 8 }}>
+                <Typography component="h1" variant="h5" align="center">
+                    Login
+                </Typography>
+                <form onSubmit={login} noValidate>
+                    <TextField
+                        variant="outlined"
+                        margin="normal"
+                        required
+                        fullWidth
+                        id="email"
+                        label="Email Address"
+                        name="email"
+                        autoComplete="email"
+                        autoFocus
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Email"
-                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
                     />
-                    <input
+                    <TextField
+                        variant="outlined"
+                        margin="normal"
+                        required
+                        fullWidth
+                        name="password"
+                        label="Password"
                         type="password"
+                        id="password"
+                        autoComplete="current-password"
                         value={password}
                         onChange={handlePasswordChange}
                         onBlur={handlePasswordBlur}
-                        placeholder="Password"
-                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        error={!!passwordErrors}
+                        helperText={passwordErrors}
                     />
-                    {passwordErrors && (
-                        <p className="text-red-600">{passwordErrors}</p>
-                    )}
-                    <button type="submit"
-                            className="w-full px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                    <Button
+                        type="submit"
+                        fullWidth
+                        variant="contained"
+                        color="primary"
+                        sx={{ mt: 3, mb: 2 }}
+                    >
                         Login
-                    </button>
-                    <div className="flex justify-between">
-                        <button type="button" onClick={() => navigate("/signup")}
-                                className="w-1/2 px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 mr-2">
+                    </Button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Button
+                            onClick={() => navigate("/signup")}
+                            variant="outlined"
+                            color="primary"
+                            sx={{ width: '48%' }}
+                        >
                             Go to Register
-                        </button>
-                        <button type="button" onClick={() => navigate("/app")}
-                                className="w-1/2 px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 ml-2">
+                        </Button>
+                        <Button
+                            onClick={() => navigate("/app")}
+                            variant="outlined"
+                            color="primary"
+                            sx={{ width: '48%' }}
+                        >
                             Go to App
-                        </button>
+                        </Button>
                     </div>
                 </form>
-                <hr className="my-6 border-gray-300 w-full"/>
-                <div className="flex justify-evenly">
-                    <button type="button" onClick={handleGoogleSignIn}
-                            className="w-16 h-16 text-white border hover:bg-blue-50 rounded-lg flex items-center justify-center">
-                        <img src="/icon-google.svg" alt="Google icon" className="w-10 h-10"/>
-                    </button>
-                    <button type="button" onClick={handleFacebookSignIn}
-                            className="w-16 h-16 text-white border hover:bg-blue-50 rounded-lg flex items-center justify-center">
-                        <img src="/icon-facebook.svg" alt="Facebook icon" className="w-10 h-10"/>
-                    </button>
-                    <button type="button" onClick={handleGoogleSignIn}
-                            className="w-16 h-16 text-white border hover:bg-blue-50 rounded-lg flex items-center justify-center">
-                        <img src="/icon-google.svg" alt="Google icon" className="w-10 h-10"/>
-                    </button>
+                <Divider sx={{ my: 3 }} />
+                <div style={{ display: 'flex', justifyContent: 'space-evenly' }}>
+                    <IconButton onClick={handleGoogleSignIn} color="primary">
+                        <GoogleIcon />
+                    </IconButton>
+                    <IconButton onClick={handleFacebookSignIn} color="primary">
+                        <FacebookIcon />
+                    </IconButton>
                 </div>
-                {error && <p className="text-red-600">{error}</p>}
-            </div>
-        </div>
+                {error && <Typography color="error">{error}</Typography>}
+            </Paper>
+        </Container>
     );
 };
 

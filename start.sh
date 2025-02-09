@@ -5,4 +5,7 @@
 node server/init-db.js
 
 # Запуск сервера
-node server/server.js
+node server/server.js &
+
+# Запуск сервера для обслуживания собранного приложения
+serve -s build

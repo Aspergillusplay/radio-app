@@ -29,7 +29,7 @@ const AudioList = () => {
     useEffect(() => {
         const fetchTracks = async () => {
             try {
-                const response = await fetch("http://localhost:3000/api/tracks");
+                const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/tracks`);
                 if (!response.ok) {
                     throw new Error("Failed to fetch tracks");
                 }
@@ -40,7 +40,7 @@ const AudioList = () => {
                 const tracksWithLikes = await Promise.all(
                     data.map(async (track: ITrack) => {
                         try {
-                            const res = await fetch("http://localhost:3000/api/tracks/like/status", {
+                            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/tracks/like/status`, {
                                 method: "POST",
                                 headers: {
                                     "Content-Type": "application/json",
@@ -79,11 +79,11 @@ const AudioList = () => {
         try {
             let response;
             if (track.isLiked) {
-                response = await fetch(`http://localhost:3000/api/tracks/like?TrackId=${track.id}&UserId=${userId}`, {
+                response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/tracks/like?TrackId=${track.id}&UserId=${userId}`, {
                     method: "DELETE",
                 });
             } else {
-                response = await fetch(`http://localhost:3000/api/tracks/like`, {
+                response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/tracks/like`, {
                     method: "POST",
                     headers: {"Content-Type": "application/json"},
                     body: JSON.stringify({TrackId: track.id, UserId: userId}),
@@ -119,46 +119,47 @@ const AudioList = () => {
 
     return (
         <div className="min-h-screen bg-gray-100">
-            <Header/>
-            <main className="container mx-auto p-4">
-                <Typography variant="h4" component="h1" gutterBottom>
-                    Track list
-                </Typography>
-                <Grid container spacing={4}>
-                    {tracks.map((track, index) => {
-                        const albumImagePath = track.Artist?.image
-                            ? `/assets/${track.Artist.image}`
-                            : "/assets/defaultAlbumArt.jpg";
-                        return (
-                            <Grid item xs={12} sm={6} lg={3} key={track.id}>
-                                <Card className="hover:shadow-lg transition cursor-pointer">
-                                    <CardMedia
-                                        component="img"
-                                        height="200"
-                                        image={albumImagePath}
-                                        alt={track.name}
-                                    />
-                                    <CardContent className="relative flex flex-row justify-between items-center">
-                                        <Typography variant="h6" component="h2">
-                                            {track.Artist?.name}: {track.name}
-                                        </Typography>
-                                        <IconButton
-                                            className="absolute top-0 right-0"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleLikeToggle(index);
-                                            }}
-                                        >
-                                            {track.isLiked ? <FavoriteIcon color="error"/> : <FavoriteBorderIcon/>}
-                                        </IconButton>
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                        );
-                    })}
-                </Grid>
-            </main>
-        </div>
+    <Header/>
+    <main className="container mx-auto p-4">
+        <Typography variant="h4" component="h1" gutterBottom>
+            Track list
+        </Typography>
+        <Grid container spacing={4}>
+            {tracks.map((track, index) => {
+                const albumImagePath = track.Artist?.image
+                    ? `http://localhost:9000/images/${track.Artist.image}`
+                    : "http://localhost:9000/images/defaultAlbumArt.jpg";
+                return (
+                    <Grid item xs={12} sm={6} lg={4} key={track.id}>
+                        <Card className="hover:shadow-lg transition cursor-pointer">
+                            <CardMedia
+                                component="img"
+                                height="200"
+                                image={albumImagePath}
+                                alt={track.name}
+                                style={{ width: '100%', height: '350px', objectFit: 'cover' }}
+                            />
+                            <CardContent className="relative flex flex-row justify-between items-center">
+                                <Typography variant="h6" component="h2">
+                                    {track.Artist?.name}: {track.name}
+                                </Typography>
+                                <IconButton
+                                    className="absolute top-0 right-0"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleLikeToggle(index);
+                                    }}
+                                >
+                                    {track.isLiked ? <FavoriteIcon color="error"/> : <FavoriteBorderIcon/>}
+                                </IconButton>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+                );
+            })}
+        </Grid>
+    </main>
+</div>
     );
 };
 

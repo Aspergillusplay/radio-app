@@ -5,16 +5,14 @@ import setupWebSocket from './websocket.js';
 import fs from 'fs';
 import path from 'path';
 import { parseFile } from 'music-metadata';
-import { fileURLToPath } from 'url';
 import sequelize from './db.js';
 import tracksRoutes from './routes/tracks.js';
 import usersRoutes from './routes/users.js';
 import artistsRoutes from './routes/artists.js';
 
 const app = express();
-const port = 3000;
+const port = 3010;
 
-// Настраиваем middleware
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS', 'DELETE', 'PUT'],
@@ -22,31 +20,10 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Определяем __dirname для ES-модулей
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Определяем папку для статики (public) и убеждаемся, что она существует
-const publicDir = path.join(__dirname, 'public');
-if (!fs.existsSync(publicDir)) {
-    fs.mkdirSync(publicDir, { recursive: true });
-}
-
-// Создаем вложенную директорию для аудиофайлов: public/assets/audio
-const audioDir = path.join(publicDir, 'assets/audio');
-if (!fs.existsSync(audioDir)) {
-    fs.mkdirSync(audioDir, { recursive: true });
-}
-
-// Подключаем статические файлы
-app.use(express.static(publicDir));
-
-// Подключаем маршруты
 app.use('/api/tracks', tracksRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/artists', artistsRoutes);
 
-// Функция для подключения к базе данных
 const startDatabase = async () => {
     try {
         await sequelize.authenticate();
@@ -59,15 +36,13 @@ const startDatabase = async () => {
 
 startDatabase();
 
-// Функция генерации списка треков из файлов (если требуется, либо замените на логику работы с БД)
+// Функция генерации списка треков (если используется локальное хранение файлов)
 async function generateTrackList(directory) {
     const tracks = [];
-
     const processDirectory = async (dir) => {
         const files = fs.readdirSync(dir, { withFileTypes: true });
         for (const file of files) {
             const fullPath = path.join(dir, file.name);
-
             if (file.isDirectory()) {
                 await processDirectory(fullPath);
             } else if (file.name.toLowerCase().endsWith('.mp3')) {
@@ -81,7 +56,6 @@ async function generateTrackList(directory) {
             }
         }
     };
-
     await processDirectory(directory);
     return tracks;
 }
@@ -89,11 +63,9 @@ async function generateTrackList(directory) {
 (async () => {
     const tracksDirectory = path.resolve('public/assets/audio');
     const tracks = await generateTrackList(tracksDirectory);
-
     if (tracks.length === 0) {
         throw new Error('No audio files found in the specified directory.');
     }
-
     let currentTrackIndex = 0;
     let currentTrackStartTime = Date.now();
 
@@ -113,18 +85,11 @@ async function generateTrackList(directory) {
         () => currentTrackIndex
     );
 
+    // server/server.js (в конце файла)
     app.get('/current-time', (req, res) => {
-        const trackIndex = parseInt(req.query.trackIndex, 10);
-
-        if (isNaN(trackIndex) || trackIndex < 0 || trackIndex >= tracks.length) {
-            return res.status(400).json({ error: 'Invalid track index' });
-        }
-
-        if (trackIndex !== currentTrackIndex) {
-            return res.status(400).json({ error: 'Track index mismatch' });
-        }
-
+        // Отдаем всегда актуальные данные: текущий индекс трека и elapsedTime
         const elapsedTime = (Date.now() - currentTrackStartTime) / 1000;
-        res.json({ elapsedTime });
+        res.json({ trackIndex: currentTrackIndex, elapsedTime });
     });
+
 })();

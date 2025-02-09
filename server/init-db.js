@@ -1,6 +1,5 @@
 // server/init-db.js
 import sequelize from './db.js';
-import User from './models/user.js';
 import Artist from './models/artist.js';
 import Track from './models/track.js';
 import Playlist from './models/playlist.js';
@@ -35,71 +34,67 @@ const initDb = async () => {
         await Track.bulkCreate([
             {
                 name: 'Burn It Down',
-                path: 'assets/audio/linkinpark/linkin-park-burn-it-down.mp3',
+                path: 'linkin-park-burn-it-down.mp3',
                 order: 1,
                 artistId: linkinPark.id,
             },
             {
                 name: 'Numb',
-                path: 'assets/audio/linkinpark/linkin-park-numb.mp3',
+                path: 'linkin-park-numb.mp3',
                 order: 2,
                 artistId: linkinPark.id,
             },
             {
                 name: 'In The End',
-                path: 'assets/audio/linkinpark/linkin-park-in-the-end.mp3',
+                path: 'linkin-park-in-the-end.mp3',
                 order: 3,
                 artistId: linkinPark.id,
             },
             {
                 name: 'Over The Hills And Far Away',
-                path: 'assets/audio/nightwish/Nightwish-Over-The-Hils-And-Far-Away.mp3',
+                path: 'Nightwish-Over-The-Hils-And-Far-Away.mp3',
                 order: 4,
                 artistId: nightwish.id,
             },
             {
                 name: 'Army Of The Night',
-                path: 'assets/audio/powerwolf/Powerwolf-Army Of The Night.mp3',
+                path: 'Powerwolf-Army Of The Night.mp3',
                 order: 5,
                 artistId: powerwolf.id,
             },
             {
                 name: 'Demons Are A Girl\'s Best Friend',
-                path: 'assets/audio/powerwolf/Powerwolf-Demon`s Are A Girl`s Best Friends.mp3',
+                path: 'Powerwolf-Demon`s Are A Girl`s Best Friends.mp3',
                 order: 6,
                 artistId: powerwolf.id,
             },
             {
                 name: 'We Drink Your Blood',
-                path: 'assets/audio/powerwolf/Powerwolf-We Drink Your Blood.mp3',
+                path: 'Powerwolf-We Drink Your Blood.mp3',
                 order: 7,
                 artistId: powerwolf.id,
             },
             {
                 name: 'Hero',
-                path: 'assets/audio/skillet/skillet_-_hero.mp3',
+                path: 'skillet_-_hero.mp3',
                 order: 8,
                 artistId: skillet.id,
             },
             {
                 name: 'Legendary',
-                path: 'assets/audio/skillet/skillet_-_legendary.mp3',
+                path: 'skillet_-_legendary.mp3',
                 order: 9,
                 artistId: skillet.id,
             },
             {
                 name: 'Feel Invincible',
-                path: 'assets/audio/skillet/skillet_-_feel-invincible.mp3',
+                path: 'skillet_-_feel-invincible.mp3',
                 order: 10,
                 artistId: skillet.id,
             },
         ]);
 
-        // Add user
-        const user = await User.create({
-            firebaseId: 'firebase_user_id',  // Replace with the ID obtained from Firebase
-            role: 'USER',
-        });
+
 
         // Create playlist for user
         const playlist = await Playlist.create({

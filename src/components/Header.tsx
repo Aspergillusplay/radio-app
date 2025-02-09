@@ -24,7 +24,7 @@ const Header = ({ additionalButton }: HeaderProps) => {
         const listener = onAuthStateChanged(auth, (user) => {
             if (user) {
                 // После получения пользователя из Firebase, получаем дополнительные данные из БД
-                fetch(`http://localhost:3000/api/users/${user.uid}`)
+                fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users/${user.uid}`)
                     .then(response => {
                         if (!response.ok) {
                             throw new Error("Failed to fetch user from DB");

@@ -1,8 +1,8 @@
-import {useState, useRef, useEffect} from "react";
+import { useState, useRef, useEffect } from "react";
 import AudioPlayer from "react-h5-audio-player";
 import H5AudioPlayer from "react-h5-audio-player";
 import "react-h5-audio-player/lib/styles.css";
-import {IconButton} from "@mui/material";
+import { IconButton } from "@mui/material";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import FavoriteIcon from '@mui/icons-material/Favorite';
 
@@ -22,9 +22,10 @@ interface ITrack {
 
 const MusicPlayer = () => {
     const [tracks, setTracks] = useState<ITrack[]>([]);
+    // Изначально currentTrackIndex не задан, чтобы потом задать его из состояния сервера
     const [currentTrackIndex, setCurrentTrackIndex] = useState<number | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [volume, setVolume] = useState(0.5); // default 50%
+    const [volume, setVolume] = useState(0.5);
     const [isUserSelecting] = useState(false);
     const imgRef = useRef<HTMLImageElement>(null);
     const audioRef = useRef<H5AudioPlayer>(null);
@@ -35,65 +36,57 @@ const MusicPlayer = () => {
 
     const handleLikeToggle = async () => {
         if (currentTrackIndex === null) return;
-
         const trackId = tracks[currentTrackIndex].id;
         const userId = 1;
 
         try {
             let response;
             if (isLiked) {
-                response = await fetch(`http://localhost:3000/api/tracks/like?TrackId=${trackId}&UserId=${userId}`, {
+                response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/tracks/like?TrackId=${trackId}&UserId=${userId}`, {
                     method: 'DELETE',
                 });
             } else {
-                response = await fetch(`http://localhost:3000/api/tracks/like`, {
+                response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/tracks/like`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({TrackId: trackId, UserId: userId}),
+                    body: JSON.stringify({ TrackId: trackId, UserId: userId }),
                 });
             }
-
             if (!response.ok) {
                 throw new Error('Failed to update like status');
             }
-
             setIsLiked(!isLiked);
         } catch (error) {
             console.error('Error updating like status:', error);
         }
     };
 
-
+    // Получение лайка для текущего трека
     useEffect(() => {
-        if (currentTrackIndex !== null) {
+        if (tracks.length > 0 && currentTrackIndex !== null) {
             const trackId = tracks[currentTrackIndex].id;
             const userId = 1;
-
             const fetchLikeStatus = async () => {
                 try {
-                    const response = await fetch(`http://localhost:3000/api/tracks/like/status`, {
+                    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/tracks/like/status`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({TrackId: trackId, UserId: userId}),
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ TrackId: trackId, UserId: userId }),
                     });
-
                     if (!response.ok) {
                         throw new Error('Failed to fetch like status');
                     }
-
                     const data = await response.json();
                     setIsLiked(data.isLiked);
                 } catch (error) {
                     console.error('Error fetching like status:', error);
                 }
             };
-
             fetchLikeStatus();
         }
     }, [currentTrackIndex, tracks]);
 
+    // Загружаем сохранённый уровень громкости
     useEffect(() => {
         const savedVolume = localStorage.getItem("player-volume");
         if (savedVolume !== null) {
@@ -101,40 +94,48 @@ const MusicPlayer = () => {
         }
     }, []);
 
+    // Получаем список треков
     useEffect(() => {
         const fetchTracks = async () => {
             try {
-                const response = await fetch("http://localhost:3000/api/tracks");
+                const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/tracks`);
                 if (!response.ok) {
                     throw new Error("Failed to fetch tracks");
                 }
                 const data = await response.json();
                 setTracks(data);
-                if (data.length > 0) {
-                    setCurrentTrackIndex(0);
-                }
             } catch (err: unknown) {
                 console.error("Error fetching tracks:", err);
-                setTracksError("Не удалось загрузить список треков");
+                setTracksError("Failed to load track list");
             } finally {
                 setLoadingTracks(false);
             }
         };
-
         fetchTracks();
     }, []);
 
+    // После загрузки треков запрашиваем у сервера актуальное состояние воспроизведения
     useEffect(() => {
-        const ws = new WebSocket("ws://localhost:3000");
+        if (tracks.length > 0) {
+            fetch(`${import.meta.env.VITE_BACKEND_URL}/current-time`)
+                .then(res => res.json())
+                .then(data => {
+                    setCurrentTrackIndex(data.trackIndex);
+                    setElapsedTime(data.elapsedTime);
+                })
+                .catch(err => console.error("Error fetching current time on mount:", err));
+        }
+    }, [tracks]);
 
+    // Подключаем WebSocket (порт изменён на 3010)
+    useEffect(() => {
+        const ws = new WebSocket("ws://localhost:3010");
         ws.onopen = () => {
             console.log("WebSocket connection established");
         };
-
         ws.onerror = (error) => {
             console.error("WebSocket error:", error);
         };
-
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === "currentTrack" && !isUserSelecting) {
@@ -143,16 +144,15 @@ const MusicPlayer = () => {
                 setIsPlaying(true);
             }
         };
-
         ws.onclose = () => {
             console.log("WebSocket connection closed. Reconnecting...");
         };
-
         return () => {
             ws.close();
         };
     }, [isUserSelecting]);
 
+    // При изменении currentTrackIndex или elapsedTime синхронизируем аудиоэлемент
     useEffect(() => {
         if (
             currentTrackIndex !== null &&
@@ -168,26 +168,24 @@ const MusicPlayer = () => {
         }
     }, [currentTrackIndex, elapsedTime, isPlaying]);
 
+    // При нажатии Play запрашиваем актуальное состояние воспроизведения с сервера
     const handlePlayPause = async (playing: boolean) => {
         setIsPlaying(playing);
         if (imgRef.current) {
             imgRef.current.style.animationPlayState = playing ? "running" : "paused";
         }
-        if (playing && currentTrackIndex !== null) {
+        if (playing) {
             try {
                 const response = await fetch(
-                    `http://localhost:3000/current-time?trackIndex=${currentTrackIndex}`,
-                    {mode: "cors"}
+                    `${import.meta.env.VITE_BACKEND_URL}/current-time`,
+                    { mode: "cors" }
                 );
                 if (!response.ok) {
-                    if (response.status === 400) {
-                        console.error("Invalid track index.");
-                    } else {
-                        console.error(`HTTP error! status: ${response.status}`);
-                    }
+                    console.error(`HTTP error! status: ${response.status}`);
                     return;
                 }
                 const data = await response.json();
+                setCurrentTrackIndex(data.trackIndex);
                 setElapsedTime(data.elapsedTime);
                 if (audioRef.current && audioRef.current.audio.current) {
                     const audio = audioRef.current.audio.current;
@@ -197,7 +195,7 @@ const MusicPlayer = () => {
             } catch (error) {
                 console.error("Error fetching current time from server:", error);
             }
-        } else if (!playing && audioRef.current && audioRef.current.audio.current) {
+        } else if (audioRef.current && audioRef.current.audio.current) {
             const audio = audioRef.current.audio.current;
             setElapsedTime(audio.currentTime);
         }
@@ -211,9 +209,11 @@ const MusicPlayer = () => {
     };
 
     const handleNextTrack = () => {
-        setCurrentTrackIndex((prevIndex) =>
-            prevIndex !== null && tracks.length > 0 ? (prevIndex + 1) % tracks.length : 0
-        );
+        if (tracks.length > 0 && currentTrackIndex !== null) {
+            setCurrentTrackIndex((prevIndex) =>
+                (prevIndex! + 1) % tracks.length
+            );
+        }
     };
 
     const handleEnded = () => {
@@ -223,7 +223,7 @@ const MusicPlayer = () => {
     if (loadingTracks) {
         return (
             <div className="flex justify-center items-center h-screen">
-                <p>Загрузка треков...</p>
+                <p>Loading tracks...</p>
             </div>
         );
     }
@@ -239,15 +239,14 @@ const MusicPlayer = () => {
     if (currentTrackIndex === null || tracks.length === 0) {
         return (
             <div className="flex justify-center items-center h-screen">
-                <p>Трек не выбран или список треков пуст</p>
+                <p>No track selected or track list is empty</p>
             </div>
         );
     }
 
     const currentArtistImage = tracks[currentTrackIndex].Artist?.image
-        ? `/assets/${tracks[currentTrackIndex].Artist.image}`
-        : "/assets/defaultAlbumArt.jpg";
-
+        ? `http://localhost:9000/images/${tracks[currentTrackIndex].Artist.image}`
+        : "http://localhost:9000/images/defaultAlbumArt.jpg";
     const currentTrackName = tracks[currentTrackIndex].name;
     const currentArtistName = tracks[currentTrackIndex].Artist?.name || "Unknown Artist";
 
@@ -259,8 +258,8 @@ const MusicPlayer = () => {
                         ref={imgRef}
                         src={currentArtistImage}
                         alt={currentArtistName}
-                        className={`h-72 w-72 rounded-full shadow-[1px_1px_16px_black] ${isPlaying ? "animate-slow-spin" : ""} sm:h-96 sm:w-96`}
-                        style={{animationPlayState: isPlaying ? "running" : "paused"}}
+                        className={`h-72 w-72 rounded-full shadow-[1px_1px_16px_black] animate-slow-spin sm:h-96 sm:w-96`}
+                        style={{ animationPlayState: "running" }}
                     />
                 </div>
                 <h2 className="text-xl font-bold mb-4">{`${currentArtistName}: ${currentTrackName}`}</h2>
@@ -268,8 +267,8 @@ const MusicPlayer = () => {
                     <AudioPlayer
                         ref={audioRef}
                         className="custom-audio-player"
-                        style={{borderBottomRightRadius: "20px", borderBottomLeftRadius: "20px"}}
-                        src={tracks[currentTrackIndex].path}
+                        style={{ borderBottomRightRadius: "20px", borderBottomLeftRadius: "20px" }}
+                        src={`${import.meta.env.VITE_BACKEND_URL}/api/tracks/stream/${tracks[currentTrackIndex].path}`}
                         onPlay={() => handlePlayPause(true)}
                         onPause={() => handlePlayPause(false)}
                         volume={volume}
@@ -278,11 +277,17 @@ const MusicPlayer = () => {
                         autoPlay={true}
                         listenInterval={1000}
                         onEnded={handleEnded}
+                        // При загрузке метаданных аудио устанавливаем позицию согласно server elapsedTime
+                        onLoadedMetaData={() => {
+                            if (audioRef.current && audioRef.current.audio.current && elapsedTime !== null) {
+                                audioRef.current.audio.current.currentTime = elapsedTime;
+                            }
+                        }}
                         showSkipControls={false}
                         showJumpControls={false}
                         customAdditionalControls={[
                             <IconButton onClick={handleLikeToggle} key="like-button">
-                                {isLiked ? <FavoriteIcon color="error"/> : <FavoriteBorderIcon/>}
+                                {isLiked ? <FavoriteIcon color="error" /> : <FavoriteBorderIcon />}
                             </IconButton>
                         ]}
                         customProgressBarSection={[]}
