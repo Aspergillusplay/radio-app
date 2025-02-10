@@ -43,7 +43,7 @@ Make sure you have the following installed:
 To start the development server, run:
 
 ```bash
-npm run dev
+docker-compose up --build
 ```
 
 ## Setting Up Firebase
