@@ -3,6 +3,7 @@ import sequelize from './db.js';
 import Artist from './models/artist.js';
 import Track from './models/track.js';
 import Playlist from './models/playlist.js';
+import User from './models/user.js';
 
 const initDb = async () => {
     try {
@@ -94,7 +95,11 @@ const initDb = async () => {
             },
         ]);
 
-
+        // Add user
+        const user = await User.create({
+            firebaseId: 'user_id',  // Replace with the ID obtained from Firebase
+            role: 'ADMIN',
+        });
 
         // Create playlist for user
         const playlist = await Playlist.create({

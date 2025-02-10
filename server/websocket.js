@@ -1,60 +1,36 @@
+// server/websocket.js
 import { WebSocketServer } from 'ws';
 
-export default function setupWebSocket(server, tracks, getNextTrack, getCurrentTrackStartTime, getCurrentTrackIndex) {
+export default function setupWebSocket(server, { getCurrentTrackIndex, getCurrentTrackStartTime }) {
     const wss = new WebSocketServer({ server });
 
     wss.on('connection', (ws) => {
-        const currentTime = Date.now();
-        const currentTrackStartTime = getCurrentTrackStartTime();
-        const currentTrackIndex = getCurrentTrackIndex();
-        const elapsedTime = (currentTime - currentTrackStartTime) / 1000;
-
+        // При подключении сразу отдаем клиенту актуальную информацию
+        const elapsedTime = (Date.now() - getCurrentTrackStartTime()) / 1000;
         ws.send(JSON.stringify({
             type: 'currentTrack',
-            trackIndex: currentTrackIndex,
+            trackIndex: getCurrentTrackIndex(),
             elapsedTime: elapsedTime
         }));
 
         ws.on('message', (message) => {
-            const data = JSON.parse(message);
+            let data;
+            try {
+                data = JSON.parse(message);
+            } catch (e) {
+                console.error('Неверный JSON:', message);
+                return;
+            }
             if (data.type === 'getCurrentTrack') {
-                const currentTime = Date.now();
-                const currentTrackStartTime = getCurrentTrackStartTime();
-                const currentTrackIndex = getCurrentTrackIndex();
-                const elapsedTime = (currentTime - currentTrackStartTime) / 1000;
+                const elapsedTime = (Date.now() - getCurrentTrackStartTime()) / 1000;
                 ws.send(JSON.stringify({
                     type: 'currentTrack',
-                    trackIndex: currentTrackIndex,
+                    trackIndex: getCurrentTrackIndex(),
                     elapsedTime: elapsedTime
                 }));
             }
         });
     });
 
-    setInterval(() => {
-        const currentTime = Date.now();
-        const currentTrackStartTime = getCurrentTrackStartTime();
-        const currentTrackIndex = getCurrentTrackIndex();
-
-        if (!tracks || tracks.length === 0 || !tracks[currentTrackIndex]) {
-            console.error('Track list is empty or index is out of range.');
-            return;
-        }
-
-        const elapsedTime = (currentTime - currentTrackStartTime) / 1000;
-
-        if (elapsedTime >= tracks[currentTrackIndex].duration) {
-            const nextTrack = getNextTrack();
-
-            wss.clients.forEach((client) => {
-                if (client.readyState === client.OPEN) {
-                    client.send(JSON.stringify({
-                        type: 'currentTrack',
-                        trackIndex: getCurrentTrackIndex(),
-                        elapsedTime: 0
-                    }));
-                }
-            });
-        }
-    }, 1000);
+    return wss;
 }
