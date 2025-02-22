@@ -7,7 +7,7 @@ const Artist = sequelize.define('Artist', {
         allowNull: false,
     },
     image: {
-        type: DataTypes.STRING,  // путь к изображению
+        type: DataTypes.STRING,
         allowNull: false,
     },
 }, {

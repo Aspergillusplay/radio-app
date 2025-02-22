@@ -1,10 +1,9 @@
-// AuthDetails.tsx
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "../../Firebase";
 import userIcon from "../../assets/user-icon.svg";
-import {Button} from "@mui/material";
+import { Button } from "@mui/material";
 
 interface DbUser {
     firebaseId: string;
@@ -24,7 +23,6 @@ const AuthDetails = () => {
         const listener = onAuthStateChanged(auth, (user) => {
             if (user) {
                 setAuthUser(user);
-                // После получения пользователя из Firebase, получаем дополнительные данные из БД
                 fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users/${user.uid}`)
                     .then(response => {
                         if (!response.ok) {
@@ -92,10 +90,22 @@ const AuthDetails = () => {
                                     </span>
                                 )}
                             </div>
-                            <Button onClick={() => navigate("/tracks")} className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100">
+                            <Button
+                                onClick={() => navigate("/tracks")}
+                                className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100"
+                            >
                                 Track list
                             </Button>
-                            <Button onClick={userSignOut} className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-red-300 rounded-b-lg">
+                            <Button
+                                onClick={() => navigate("/wish")}
+                                className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100"
+                            >
+                                Make a wish
+                            </Button>
+                            <Button
+                                onClick={userSignOut}
+                                className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-red-300 rounded-b-lg"
+                            >
                                 Logout
                             </Button>
                         </div>

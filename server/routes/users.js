@@ -4,15 +4,14 @@ import User from '../models/user.js';
 
 const router = express.Router();
 
-// Эндпоинт для создания (или получения) пользователя
 router.post('/', async (req, res) => {
     try {
         const { firebaseId } = req.body;
         if (!firebaseId) {
             return res.status(400).json({ error: 'firebaseId is required' });
         }
-        // Если пользователь с таким firebaseId уже существует, он будет найден,
-        // иначе будет создан новый с ролью по умолчанию ("USER")
+        // If the user already exists, it will be returned
+        // If the user doesn't exist, it will be created
         const [user, created] = await User.findOrCreate({
             where: { firebaseId },
             defaults: { role: 'USER' },

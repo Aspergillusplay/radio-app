@@ -5,6 +5,7 @@ import SignIn from "./components/auth/SignIn";
 import Header from "./components/Header";
 import AudioList from "./components/AudioList";
 import UploadAudio from "./components/upload/UploadAudio.tsx";
+import WishPage from "./components/WishPage.tsx";
 
 const App = () => {
     return (
@@ -16,6 +17,7 @@ const App = () => {
                 <Route path="/app" element={<AppWithAuthDetails />} />
                 <Route path="/tracks" element={<AudioList />} />
                 <Route path="/uploadAudio" element={<UploadAudio />} />
+                <Route path="/wish" element={<WishPage />} />
             </Routes>
         </Router>
     );

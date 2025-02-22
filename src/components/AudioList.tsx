@@ -4,8 +4,6 @@ import {IconButton, Card, CardMedia, CardContent, Typography, Grid} from "@mui/m
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 
-// Интерфейсы для артиста и трека.
-// Добавляем опциональное поле isLiked для статуса лайка.
 interface IArtist {
     id: number;
     name: string;
@@ -25,7 +23,7 @@ const AudioList = () => {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>("");
 
-    // Получение списка треков и для каждого — статуса лайка
+    // Fetch the list of tracks from the backend
     useEffect(() => {
         const fetchTracks = async () => {
             try {
@@ -35,8 +33,8 @@ const AudioList = () => {
                 }
                 const data = await response.json();
 
-                // Для каждого трека запрашиваем статус лайка
-                const userId = 1; // текущий пользователь (можно заменить на актуальный ID)
+                // For each track, fetch the like status
+                const userId = 1;
                 const tracksWithLikes = await Promise.all(
                     data.map(async (track: ITrack) => {
                         try {
@@ -63,7 +61,7 @@ const AudioList = () => {
                 setTracks(tracksWithLikes);
             } catch (err: any) {
                 console.error("Error fetching tracks:", err);
-                setError("Не удалось загрузить список треков");
+                setError("Failed to fetch tracks");
             } finally {
                 setLoading(false);
             }
@@ -75,7 +73,7 @@ const AudioList = () => {
     // Функция для переключения лайка у конкретного трека
     const handleLikeToggle = async (index: number) => {
         const track = tracks[index];
-        const userId = 1; // используем тот же ID пользователя
+        const userId = 1; // user ID
         try {
             let response;
             if (track.isLiked) {
@@ -92,7 +90,7 @@ const AudioList = () => {
             if (!response.ok) {
                 throw new Error("Failed to update like status");
             }
-            // Обновляем статус лайка в состоянии
+            // Set the updated like status in the local state
             const updatedTracks = [...tracks];
             updatedTracks[index].isLiked = !updatedTracks[index].isLiked;
             setTracks(updatedTracks);

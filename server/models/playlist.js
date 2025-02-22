@@ -12,11 +12,9 @@ const Playlist = sequelize.define('Playlist', {
     timestamps: false,
 });
 
-// Связь с пользователем
 Playlist.belongsTo(User);
 User.hasMany(Playlist);
 
-// Связь с треками
 Playlist.belongsToMany(Track, { through: 'PlaylistTracks' });
 Track.belongsToMany(Playlist, { through: 'PlaylistTracks' });
 

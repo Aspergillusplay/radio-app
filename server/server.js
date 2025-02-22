@@ -6,6 +6,7 @@ import sequelize from './db.js';
 import tracksRoutes from './routes/tracks.js';
 import usersRoutes from './routes/users.js';
 import artistsRoutes from './routes/artists.js';
+import wishesRoutes from './routes/wishes.js';
 import Track from './models/track.js'; // Модель трека из БД
 import minioClient from './clients/minioClient.js';
 import { parseStream } from 'music-metadata'; // Для получения метаданных аудиофайла
@@ -23,6 +24,7 @@ app.use(express.json());
 app.use('/api/tracks', tracksRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/artists', artistsRoutes);
+app.use('/api/wishes', wishesRoutes);
 
 const startDatabase = async () => {
     try {
@@ -36,10 +38,7 @@ const startDatabase = async () => {
 
 startDatabase();
 
-/**
- * Функция для вычисления длительности трека.
- * Получает поток файла из MinIO и с помощью music-metadata определяет duration.
- */
+// Function to compute track duration
 async function computeTrackDuration(track) {
     return new Promise((resolve) => {
         const bucket = 'audio'; // Название вашего бакета в MinIO
@@ -60,10 +59,7 @@ async function computeTrackDuration(track) {
     });
 }
 
-/**
- * Функция загрузки списка треков из базы данных.
- * Для каждого трека, у которого ещё не вычислена длительность, пытаемся её вычислить.
- */
+// Function to load tracks from the database and compute their duration
 async function loadTracks() {
     const tracksFromDB = await Track.findAll({ order: [['order', 'ASC']] });
     const newTracks = tracksFromDB.map(track => track.get({ plain: true }));
@@ -80,7 +76,7 @@ async function loadTracks() {
 }
 
 (async () => {
-    // Изначально загружаем список треков
+    // Track duration computation
     let tracks = await loadTracks();
 
     if (!tracks.length) {
@@ -93,7 +89,7 @@ async function loadTracks() {
     let trackSwitchTimeout = null;
     let wssInstance = null;
 
-    // Функция рассылки текущей информации (индекс трека и elapsedTime) через WebSocket
+    // Function to broadcast current track information to all clients
     function broadcastCurrentTrack() {
         const elapsedTime = (Date.now() - currentTrackStartTime) / 1000;
         if (wssInstance) {
@@ -109,20 +105,16 @@ async function loadTracks() {
         }
     }
 
-    // Функция старта воспроизведения трека по индексу.
-    // Перед запуском каждого трека обновляем список треков, чтобы учесть новые добавленные.
+    // Function to start playing a track by its index
     async function startTrack(index) {
         currentTrackIndex = index;
         currentTrackStartTime = Date.now();
         broadcastCurrentTrack();
 
         if (trackSwitchTimeout) clearTimeout(trackSwitchTimeout);
-
-        // Обновляем список треков из базы данных
         tracks = await loadTracks();
 
-        // Если текущий индекс оказался вне диапазона (например, новые треки добавились в начало),
-        // то сбрасываем его на 0
+        // Looping through the tracks
         if (currentTrackIndex >= tracks.length) {
             currentTrackIndex = 0;
         }
@@ -147,26 +139,21 @@ async function loadTracks() {
         }, delay);
     }
 
-    // Запуск HTTP-сервера
     const server = app.listen(port, () => {
         console.log(`Server running at http://localhost:${port}`);
     });
 
-    // Инициализация WebSocket
     wssInstance = setupWebSocket(server, {
         getCurrentTrackIndex: () => currentTrackIndex,
         getCurrentTrackStartTime: () => currentTrackStartTime,
     });
 
-    // (Опционально) Каждую секунду рассылаем обновлённую информацию клиентам
     setInterval(() => {
         broadcastCurrentTrack();
     }, 1000);
 
-    // Начинаем воспроизведение с первого трека
     startTrack(0);
 
-    // Эндпоинт для получения текущего состояния воспроизведения
     app.get('/current-time', (req, res) => {
         const elapsedTime = (Date.now() - currentTrackStartTime) / 1000;
         res.json({ trackIndex: currentTrackIndex, elapsedTime });
