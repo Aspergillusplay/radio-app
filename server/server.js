@@ -148,10 +148,6 @@ async function loadTracks() {
         getCurrentTrackStartTime: () => currentTrackStartTime,
     });
 
-    setInterval(() => {
-        broadcastCurrentTrack();
-    }, 1000);
-
     startTrack(0);
 
     app.get('/current-time', (req, res) => {
