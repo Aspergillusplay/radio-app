@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, TextField, Typography } from "@mui/material";
+import { Button, TextField, Typography, Snackbar, Alert } from "@mui/material";
 
 interface Artist {
     id: string;
@@ -15,6 +15,9 @@ interface CreateGroupFormProps {
 const CreateGroupForm: React.FC<CreateGroupFormProps> = ({ setArtists, artists, setError }) => {
     const [newGroupName, setNewGroupName] = useState<string>("");
     const [newGroupImage, setNewGroupImage] = useState<File | null>(null);
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState("");
+    const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">("success");
 
     const handleNewGroupImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -45,15 +48,23 @@ const CreateGroupForm: React.FC<CreateGroupFormProps> = ({ setArtists, artists, 
                 throw new Error("Failed to create group");
             }
 
-            // Refresh the artist list
             const newArtist = await response.json();
             setArtists([...artists, newArtist]);
             setNewGroupName("");
             setNewGroupImage(null);
+            setSnackbarMessage("Group created successfully");
+            setSnackbarSeverity("success");
+            setSnackbarOpen(true);
         } catch (err) {
             console.error("Error creating group:", err);
-            setError("Failed to create group");
+            setSnackbarMessage("Failed to create group");
+            setSnackbarSeverity("error");
+            setSnackbarOpen(true);
         }
+    };
+
+    const handleCloseSnackbar = () => {
+        setSnackbarOpen(false);
     };
 
     return (
@@ -83,6 +94,12 @@ const CreateGroupForm: React.FC<CreateGroupFormProps> = ({ setArtists, artists, 
             >
                 Create Group
             </Button>
+
+            <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleCloseSnackbar}>
+                <Alert onClose={handleCloseSnackbar} severity={snackbarSeverity} sx={{ width: "100%" }}>
+                    {snackbarMessage}
+                </Alert>
+            </Snackbar>
         </form>
     );
 };

@@ -1,6 +1,5 @@
-import { useState } from "react";
-import { Button, TextField, Typography, MenuItem } from "@mui/material";
-import { useNavigate } from "react-router-dom";
+import {useState} from "react";
+import {Button, TextField, Typography, MenuItem, Snackbar, Alert} from "@mui/material";
 
 interface Artist {
     id: string;
@@ -12,12 +11,13 @@ interface UploadAudioFormProps {
     setError: (error: string) => void;
 }
 
-const UploadAudioForm: React.FC<UploadAudioFormProps> = ({ artists, setError }) => {
+const UploadAudioForm: React.FC<UploadAudioFormProps> = ({artists, setError}) => {
     const [audioFile, setAudioFile] = useState<File | null>(null);
     const [trackName, setTrackName] = useState<string>("");
     const [selectedArtistId, setSelectedArtistId] = useState<string>("");
-    const [error] = useState<string>(""); // Rename to setErrorState
-    const navigate = useNavigate();
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState("");
+    const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">("success");
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -57,11 +57,24 @@ const UploadAudioForm: React.FC<UploadAudioFormProps> = ({ artists, setError }) 
                 throw new Error("Failed to upload audio file");
             }
 
-            navigate("/tracks");
+            setSnackbarMessage("Audio file uploaded successfully");
+            setSnackbarSeverity("success");
+            setSnackbarOpen(true);
+
+            // Clear input fields
+            setAudioFile(null);
+            setTrackName("");
+            setSelectedArtistId("");
         } catch (err: unknown) {
             console.error("Error uploading audio file:", err);
-            setError("Failed to upload audio file");
+            setSnackbarMessage("Failed to upload audio file");
+            setSnackbarSeverity("error");
+            setSnackbarOpen(true);
         }
+    };
+
+    const handleCloseSnackbar = () => {
+        setSnackbarOpen(false);
     };
 
     return (
@@ -75,7 +88,7 @@ const UploadAudioForm: React.FC<UploadAudioFormProps> = ({ artists, setError }) 
                     id="audio"
                     name="audio"
                     accept="audio/*"
-                    className={`mt-4 block w-full px-3 py-2 border rounded-md shadow-sm ${error ? "border-red-300" : "border-gray-300"}`}
+                    className={`mt-4 block w-full px-3 py-2 border rounded-md shadow-sm border-gray-300`}
                     onChange={handleFileChange}
                 />
             </div>
@@ -113,10 +126,16 @@ const UploadAudioForm: React.FC<UploadAudioFormProps> = ({ artists, setError }) 
                 variant="contained"
                 color="primary"
                 fullWidth
-                sx={{ mt: 2 }}
+                sx={{mt: 2}}
             >
                 Upload
             </Button>
+
+            <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleCloseSnackbar}>
+                <Alert onClose={handleCloseSnackbar} severity={snackbarSeverity} sx={{width: "100%"}}>
+                    {snackbarMessage}
+                </Alert>
+            </Snackbar>
         </form>
     );
 };
