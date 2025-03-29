@@ -1,3 +1,4 @@
+// server/models/track.js
 import { DataTypes } from 'sequelize';
 import sequelize from '../db.js';
 import Artist from './artist.js';
@@ -13,7 +14,7 @@ const Track = sequelize.define('Track', {
     },
     order: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true, // Changed to true to allow null during reordering
     },
     likes: {
         type: DataTypes.INTEGER,
@@ -26,11 +27,18 @@ const Track = sequelize.define('Track', {
             key: 'id',
         },
     },
+    group: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    isDuplicate: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+    },
 }, {
     timestamps: true,
 });
 
-// Связь с группой исполнителей
 Track.belongsTo(Artist, { foreignKey: 'artistId' });
 Artist.hasMany(Track, { foreignKey: 'artistId' });
 

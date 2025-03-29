@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import Header from "./Header";
-import { List, ListItem, Divider, Typography, TextField, Button, Paper } from "@mui/material";
+import {List, ListItem, Divider, Typography, TextField, Button, Paper, IconButton, Box} from "@mui/material";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../Firebase";
+import dayjs from "dayjs";
+import DeleteIcon from '@mui/icons-material/Delete';
 
 interface Wish {
     id: number;
@@ -13,6 +15,7 @@ interface Wish {
     User?: {
         firebaseId: string;
         role: "USER" | "ADMIN";
+        login: string;
     };
 }
 
@@ -95,59 +98,91 @@ const WishPage = () => {
         }
     };
 
-
+    const handleDelete = async (wishId: number) => {
+        try {
+            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/wishes/${wishId}`, {
+                method: "DELETE",
+            });
+            if (!response.ok) {
+                throw new Error("Error deleting wish");
+            }
+            fetchWishes(firebaseUser.uid);
+        } catch (error) {
+            console.error("Error deleting wish:", error);
+        }
+    };
 
     return (
-            <div className="min-h-screen bg-gray-100">
-                <Header/>
-                <main className="container mx-auto p-4">
-                    <Typography variant="h4" gutterBottom>
-                        Make a wish
-                    </Typography>
-                    <form onSubmit={handleSubmit} style={{marginBottom: "16px"}}>
-                        <TextField
-                            label="Write your wish..."
-                            variant="outlined"
-                            fullWidth
-                            value={wish}
-                            onChange={(e) => setWish(e.target.value)}
-                        />
-                        <Button type="submit" variant="contained" color="primary" style={{marginTop: "8px"}}>
-                            Submit
-                        </Button>
-                    </form>
-                    {loading ? (
-                        <Typography>Loading wishes...</Typography>
+        <Box
+            sx={{ minHeight: "100vh", background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)" }}
+        >
+            <Header />
+            <main className="container mx-auto p-4">
+                <Typography variant="h4" gutterBottom>
+                    Make a wish
+                </Typography>
+                <form onSubmit={handleSubmit} style={{ marginBottom: "16px" }}>
+                    <TextField
+                        label="Write your wish..."
+                        variant="outlined"
+                        fullWidth
+                        value={wish}
+                        onChange={(e) => setWish(e.target.value)}
+                    />
+                    <Button type="submit" variant="contained" color="primary" style={{ marginTop: "8px" }}>
+                        Submit
+                    </Button>
+                </form>
+                {loading ? (
+                    <Typography>Loading wishes...</Typography>
+                ) : (
+                    Object.keys(groupedWishes).length === 0 ? (
+                        <Typography>No wishes found.</Typography>
                     ) : (
                         Object.keys(groupedWishes).map((userId) => {
                             const userWishes = groupedWishes[userId];
-                            const displayName = firebaseUser && firebaseUser.uid === userId
-                                ? (firebaseUser.displayName || firebaseUser.email)
-                                : userId;
+                            const displayName = userWishes[0]?.User?.login;
+                            const role = userWishes[0]?.User?.role;
+                            const isCurrentUser = firebaseUser && firebaseUser.uid === userId;
                             return (
-                                <Paper key={userId} style={{marginBottom: "16px", padding: "8px"}}>
-                                    <Typography variant="h6" style={{color: getColorForUser(userId)}}>
-                                        {displayName}
-                                    </Typography>
+                                <Paper key={userId} style={{ marginBottom: "16px", padding: "8px" }}>
+                                    {!isCurrentUser && (
+                                        <Typography variant="h6" style={{ color: getColorForUser(userId) }}>
+                                            {displayName} ({role})
+                                        </Typography>
+                                    )}
                                     <List>
                                         {userWishes.map((w, index) => (
                                             <div key={w.id}>
                                                 <ListItem>
                                                     <Typography>{w.content}</Typography>
+                                                    <Typography variant="body2" color="textSecondary" style={{ marginLeft: "auto" }}>
+                                                        {dayjs(w.createdAt).format('DD.MM.YYYY HH:mm')}
+                                                    </Typography>
+                                                    <IconButton onClick={() => handleDelete(w.id)} color="error">
+                                                        <DeleteIcon />
+                                                    </IconButton>
                                                 </ListItem>
                                                 {index < userWishes.length - 1 && (
-                                                    <Divider variant="middle" component="li"/>
+                                                    <Divider variant="middle" component="li" />
                                                 )}
                                             </div>
                                         ))}
                                     </List>
                                 </Paper>
                             );
+                        }).sort((a, b) => {
+                            const aIsCurrentUser = firebaseUser && firebaseUser.uid === a.key;
+                            const bIsCurrentUser = firebaseUser && firebaseUser.uid === b.key;
+                            if (aIsCurrentUser && !bIsCurrentUser) return -1;
+                            if (!aIsCurrentUser && bIsCurrentUser) return 1;
+                            return 0;
                         })
-                    )}
-                </main>
-            </div>
-        );
-    };
+                    )
+                )}
+            </main>
+        </Box>
+    );
+};
 
-    export default WishPage;
+export default WishPage;

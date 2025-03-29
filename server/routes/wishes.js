@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
         }
         if (user.role === 'ADMIN') {
             const wishes = await Wish.findAll({
-                include: [{ model: User, attributes: ['firebaseId', 'role'] }],
+                include: [{ model: User, attributes: ['firebaseId', 'role', 'login'] }],
                 order: [['createdAt', 'ASC']],
             });
             const grouped = wishes.reduce((acc, wish) => {
@@ -33,6 +33,7 @@ router.get('/', async (req, res) => {
         } else {
             const wishes = await Wish.findAll({
                 where: { UserId: user.id },
+                include: [{ model: User, attributes: ['firebaseId', 'role', 'login'] }],
                 order: [['createdAt', 'ASC']],
             });
             res.json({ [user.firebaseId]: wishes });
@@ -42,7 +43,6 @@ router.get('/', async (req, res) => {
         res.status(500).json({ error: 'Server error' });
     }
 });
-
 
 // POST /api/wishes
 // Creates a new wish for the user with the specified firebaseId.
@@ -58,6 +58,23 @@ router.post('/', async (req, res) => {
         }
         const wish = await Wish.create({ content, UserId: user.id });
         res.status(201).json(wish);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// DELETE /api/wishes/:id
+// Deletes a wish by its ID.
+router.delete('/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const wish = await Wish.findByPk(id);
+        if (!wish) {
+            return res.status(404).json({ error: 'Wish not found' });
+        }
+        await wish.destroy();
+        res.status(204).send();
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Server error' });

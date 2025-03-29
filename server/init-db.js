@@ -4,111 +4,139 @@ import Artist from './models/artist.js';
 import Track from './models/track.js';
 import Playlist from './models/playlist.js';
 import User from './models/user.js';
+import Wish from './models/wish.js';
+import TrackLikes from "./models/likes.js";
+import playlist from "./models/playlist.js";
 
 const initDb = async () => {
+    playlist.addTracks = async function (tracks) {
+        await this.addTracks(tracks);
+        await this.save();
+    };
     try {
         // Synchronize models
-        await sequelize.sync({force: true});  // force: true will drop tables on start
-
+        await sequelize.sync({ force: true });
         console.log('Database synced!');
 
         const linkinPark = await Artist.create({
             name: 'Linkin Park',
             image: 'linkinpark.jpg',
         });
-
         const nightwish = await Artist.create({
             name: 'Nightwish',
             image: 'nightwish.jpg',
         });
-
         const powerwolf = await Artist.create({
             name: 'Powerwolf',
             image: 'powerwolf.jpg',
         });
-
         const skillet = await Artist.create({
             name: 'Skillet',
             image: 'skillet.jpg',
         });
 
-        await Track.bulkCreate([
+        const tracks = await Track.bulkCreate([
             {
                 name: 'Burn It Down',
-                path: 'linkin-park-burn-it-down.mp3',
-                order: 1,
+                path: 'Burn_It_Down.mp3',
+                order: 5,
                 artistId: linkinPark.id,
+                group: 'B',
+                likes: 100,
             },
             {
                 name: 'Numb',
-                path: 'linkin-park-numb.mp3',
+                path: 'Numb.mp3',
                 order: 2,
                 artistId: linkinPark.id,
+                group: 'A',
+                likes: 200,
             },
             {
                 name: 'In The End',
-                path: 'linkin-park-in-the-end.mp3',
+                path: 'In_The_End.mp3',
                 order: 3,
                 artistId: linkinPark.id,
+                group: 'A',
+                likes: 300,
             },
             {
                 name: 'Over The Hills And Far Away',
-                path: 'Nightwish-Over-The-Hils-And-Far-Away.mp3',
+                path: 'Over_The_Hills_And_Far_Away.mp3',
                 order: 4,
                 artistId: nightwish.id,
+                group: 'B',
+                likes: 150,
             },
             {
                 name: 'Army Of The Night',
-                path: 'Powerwolf-Army Of The Night.mp3',
-                order: 5,
+                path: 'Army_Of_The_Night.mp3',
+                order: 1,
                 artistId: powerwolf.id,
+                group: 'A',
+                likes: 250,
             },
             {
                 name: 'Demons Are A Girl\'s Best Friend',
-                path: 'Powerwolf-Demon`s Are A Girl`s Best Friends.mp3',
+                path: 'Demons_Are_A_Girls_Best_Friend.mp3',
                 order: 6,
                 artistId: powerwolf.id,
+                group: 'C',
+                likes: 50,
             },
             {
                 name: 'We Drink Your Blood',
-                path: 'Powerwolf-We Drink Your Blood.mp3',
+                path: 'We_Drink_Your_Blood.mp3',
                 order: 7,
                 artistId: powerwolf.id,
+                group: 'C',
+                likes: 75,
             },
             {
                 name: 'Hero',
-                path: 'skillet_-_hero.mp3',
+                path: 'Hero.mp3',
                 order: 8,
                 artistId: skillet.id,
+                group: 'B',
+                likes: 125,
             },
             {
                 name: 'Legendary',
-                path: 'skillet_-_legendary.mp3',
+                path: 'Legendary.mp3',
                 order: 9,
                 artistId: skillet.id,
+                group: 'B',
+                likes: 175,
             },
             {
                 name: 'Feel Invincible',
-                path: 'skillet_-_feel-invincible.mp3',
+                path: 'Feel_Invincible.mp3',
                 order: 10,
                 artistId: skillet.id,
+                group: 'A',
+                likes: 225,
             },
         ]);
 
-        // Add user
-        const user = await User.create({
-            firebaseId: 'user_id',  // Replace with the ID obtained from Firebase
+        const user1 = await User.create({
+            firebaseId: 'mM0teVIaE5hUFkaHYPMY1tXTFD33',
             role: 'ADMIN',
+            email: 'aspergillusplay@gmail.com',
         });
 
-        // Create playlist for user
+        const user2 = await User.create({
+            firebaseId: 'psh1SNiJwsZC3tyWHUcRpvY63ut1',
+            role: 'USER',
+            email: 'kartofka123@i.ua',
+        });
+
+        // Create playlist and add tracks to the playlist
         const playlist = await Playlist.create({
-            name: 'My Playlist',
-            userId: user.id,
+            name: 'Default Playlist',
+            userId: user1.id,
         });
 
-        // Add tracks to playlist
-        await playlist.addTracks([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        await playlist.addTracks(tracks);
 
         console.log('Database initialized with default data!');
     } catch (error) {

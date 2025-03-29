@@ -21,3 +21,24 @@
     animation: slow-spin 9s linear infinite;
     animation-play-state: paused;
 }
+
+@keyframes gradient-animation {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+.animate-gradient {
+    /* Градиент с несколькими цветами */
+    background: linear-gradient(270deg, #ff7e5f, #feb47b, #86a8e7, #91eae4, #ff7e5f);
+    background-size: 600% 600%;
+    animation: gradient-animation 15s ease infinite;
+    /* Управление анимацией через React (inline-стиль) */
+    animation-play-state: paused;
+}

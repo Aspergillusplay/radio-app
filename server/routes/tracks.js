@@ -1,14 +1,14 @@
-// routes/tracks.js
 import express from 'express';
 import multer from 'multer';
 import Track from '../models/track.js';
-import Artist from "../models/artist.js";
-import TrackLike from "../models/likes.js";
-import minioClient from "../clients/minioClient.js";
+import Artist from '../models/artist.js';
+import TrackLike from '../models/likes.js';
+import minioClient from '../clients/minioClient.js';
+import { reorderTracksByLikes } from '../server.js';
 
 const router = express.Router();
 
-// Настройка хранилища Multer для загрузки файлов (если требуется)
+// Multer storage configuration for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
@@ -17,30 +17,30 @@ const upload = multer({
         if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {
-            cb(new Error('Неверный формат файла'), false);
+            cb(new Error('Invalid file format'), false);
         }
     }
 });
 
-// Маршрут для загрузки аудиофайла (без изменений)
+// Route for uploading audio files
 router.post('/upload', upload.single('audio'), async (req, res) => {
     try {
         if (!req.file) {
-            return res.status(400).json({ error: 'Аудиофайл не был предоставлен.' });
+            return res.status(400).json({ error: 'Audio file not provided.' });
         }
         const bucketName = 'audio';
         const fileName = req.file.originalname;
 
-        console.log('Загруженный файл:', req.file);
-        console.log('Данные формы:', req.body);
+        console.log('Uploaded file:', req.file);
+        console.log('Form data:', req.body);
 
         await minioClient.putObject(bucketName, fileName, req.file.buffer, async (err, etag) => {
             if (err) {
-                console.error('Ошибка загрузки аудиофайла:', err);
-                return res.status(500).json({ error: 'Ошибка сервера при загрузке аудио' });
+                console.error('Error uploading audio file:', err);
+                return res.status(500).json({ error: 'Server error during audio upload' });
             }
-            console.log('Файл успешно загружен в Minio:', etag);
-            res.status(201).json({ message: 'Файл успешно загружен' });
+            console.log('File successfully uploaded to MinIO:', etag);
+            res.status(201).json({ message: 'File uploaded successfully' });
 
             let order;
             if (req.body.order) {
@@ -52,22 +52,22 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
 
             const trackData = {
                 name: req.body.name || req.file.originalname,
-                path: fileName, // сохраняем только имя файла
+                path: fileName,
                 order: order,
                 likes: 0,
                 artistId: req.body.artistId || null,
+                isDuplicate: false,
             };
 
             await Track.create(trackData);
         });
-
     } catch (error) {
-        console.error('Ошибка загрузки аудиофайла:', error);
-        res.status(500).json({ error: 'Ошибка сервера при загрузке аудио' });
+        console.error('Error uploading audio file:', error);
+        res.status(500).json({ error: 'Server error during audio upload' });
     }
 });
 
-// GET-маршрут для получения списка треков с артистами (без изменений)
+// Route to get tracks with their artists
 router.get('/', async (req, res) => {
     try {
         const tracks = await Track.findAll({
@@ -84,23 +84,21 @@ router.get('/', async (req, res) => {
     }
 });
 
-// **Изменённый маршрут для стриминга аудио с поддержкой Range-запросов**
+// Stream route with Range support
 router.get('/stream/:filename', (req, res) => {
     const bucket = 'audio';
     const filename = req.params.filename;
 
-    // Сначала получаем метаданные объекта для определения размера файла
     minioClient.statObject(bucket, filename, (err, stat) => {
         if (err) {
-            console.error(`Ошибка при получении метаданных файла ${filename}:`, err);
-            return res.status(404).json({ error: 'Файл не найден' });
+            console.error(`Error getting metadata for file ${filename}:`, err);
+            return res.status(404).json({ error: 'File not found' });
         }
 
         const fileSize = stat.size;
         const range = req.headers.range;
 
         if (range) {
-            // Пример заголовка Range: "bytes=0-"
             const parts = range.replace(/bytes=/, "").split("-");
             const start = parseInt(parts[0], 10);
             const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
@@ -111,23 +109,21 @@ router.get('/stream/:filename', (req, res) => {
                 'Content-Length': chunkSize,
                 'Content-Type': 'audio/mpeg'
             });
-            // Получаем часть файла из Minio
             minioClient.getPartialObject(bucket, filename, start, chunkSize, (err, dataStream) => {
                 if (err) {
-                    console.error(`Ошибка при получении частичного объекта ${filename}:`, err);
+                    console.error(`Error getting partial object ${filename}:`, err);
                     return res.status(500).send(err.message);
                 }
                 dataStream.pipe(res);
             });
         } else {
-            // Если Range-заголовок не передан — отдаем весь файл
             res.writeHead(200, {
                 'Content-Length': fileSize,
                 'Content-Type': 'audio/mpeg'
             });
             minioClient.getObject(bucket, filename, (err, dataStream) => {
                 if (err) {
-                    console.error(`Ошибка при получении файла ${filename}:`, err);
+                    console.error(`Error getting file ${filename}:`, err);
                     return res.status(500).send(err.message);
                 }
                 dataStream.pipe(res);
@@ -136,39 +132,31 @@ router.get('/stream/:filename', (req, res) => {
     });
 });
 
-// Маршруты для работы с лайками (без изменений)
+// Like routes
 router.post('/like', async (req, res) => {
     const { TrackId, UserId } = req.body;
-
     if (!UserId) {
         return res.status(400).json({ error: 'User ID is required' });
     }
-
     try {
         console.log('Received like request:', { TrackId, UserId });
-
         const existingLike = await TrackLike.findOne({
             where: { TrackId, UserId }
         });
-
         if (existingLike) {
             console.log('User already liked this track:', { TrackId, UserId });
             return res.status(400).json({ error: 'You already liked this track' });
         }
-
         await TrackLike.create({ TrackId, UserId });
         console.log('Like created:', { TrackId, UserId });
-
         const track = await Track.findByPk(TrackId);
         if (!track) {
             console.log('Track not found:', { TrackId });
             return res.status(404).json({ error: 'Track not found' });
         }
-
         track.likes += 1;
         await track.save();
         console.log('Track likes updated:', { TrackId, likes: track.likes });
-
         res.status(200).json({ message: 'Track liked successfully' });
     } catch (error) {
         console.error('Error processing like request:', error);
@@ -178,24 +166,19 @@ router.post('/like', async (req, res) => {
 
 router.delete('/like', async (req, res) => {
     const { TrackId, UserId } = req.query;
-
     try {
         const like = await TrackLike.findOne({
             where: { TrackId, UserId }
         });
-
         if (!like) {
             return res.status(400).json({ error: "You haven't liked this track yet" });
         }
-
         await like.destroy();
-
         const track = await Track.findByPk(TrackId);
         if (track) {
             track.likes = Math.max(0, track.likes - 1);
             await track.save();
         }
-
         res.status(200).json({ message: 'Track unliked successfully' });
     } catch (error) {
         console.error(error);
@@ -205,7 +188,6 @@ router.delete('/like', async (req, res) => {
 
 router.post('/like/status', async (req, res) => {
     const { TrackId, UserId } = req.body;
-
     try {
         const existingLike = await TrackLike.findOne({
             where: { TrackId, UserId }
@@ -214,6 +196,34 @@ router.post('/like/status', async (req, res) => {
     } catch (error) {
         console.error('Error fetching like status:', error);
         res.status(500).json({ error: 'Something went wrong' });
+    }
+});
+
+// Reorder route that calls the new logic in server.js
+router.post('/reorder', async (req, res) => {
+    try {
+        await reorderTracksByLikes();
+        const updatedTracks = await Track.findAll({ order: [['order', 'ASC']] });
+        res.json(updatedTracks);
+    } catch (error) {
+        console.error('Error reordering tracks:', error);
+        res.status(500).json({ error: 'Failed to reorder tracks' });
+    }
+});
+
+// Route to delete a track
+router.delete('/:id', async (req, res) => {
+    try {
+        const trackId = req.params.id;
+        const track = await Track.findByPk(trackId);
+        if (!track) {
+            return res.status(404).json({ error: 'Track not found' });
+        }
+        await track.destroy();
+        res.status(200).json({ message: 'Track deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting track:', error);
+        res.status(500).json({ error: 'Failed to delete track' });
     }
 });
 

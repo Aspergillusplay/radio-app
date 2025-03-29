@@ -4,6 +4,8 @@ import "react-h5-audio-player/lib/styles.css";
 import { IconButton } from "@mui/material";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import FavoriteIcon from '@mui/icons-material/Favorite';
+// import RefreshIcon from '@mui/icons-material/Refresh';
+import classNames from 'classnames';
 
 interface IArtist {
     id: number;
@@ -22,7 +24,6 @@ interface ITrack {
 
 const MusicPlayer = () => {
     const [tracks, setTracks] = useState<ITrack[]>([]);
-    // Изначально currentTrackIndex не задан, чтобы потом задать его из состояния сервера
     const [currentTrackIndex, setCurrentTrackIndex] = useState<number | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(0.5);
@@ -30,15 +31,12 @@ const MusicPlayer = () => {
     const [loadingTracks, setLoadingTracks] = useState<boolean>(true);
     const [tracksError, setTracksError] = useState<string>("");
     const [isLiked, setIsLiked] = useState(false);
-    // Флаг, показывающий, что пользователь вручную поставил плеер на паузу
     const [isManuallyPaused, setIsManuallyPaused] = useState(false);
-    // Реф для хранения текущего состояния ручной паузы (чтобы быть актуальным внутри WS-обработчика)
     const isManuallyPausedRef = useRef(false);
 
     const imgRef = useRef<HTMLImageElement>(null);
     const audioRef = useRef<AudioPlayer>(null);
 
-    // Обновляем ref при изменении isManuallyPaused
     useEffect(() => {
         isManuallyPausedRef.current = isManuallyPaused;
     }, [isManuallyPaused]);
@@ -47,7 +45,6 @@ const MusicPlayer = () => {
         if (currentTrackIndex === null) return;
         const trackId = tracks[currentTrackIndex].id;
         const userId = 1;
-
         try {
             let response;
             if (isLiked) {
@@ -74,7 +71,6 @@ const MusicPlayer = () => {
         }
     };
 
-    // Получаем лайк для текущего трека
     useEffect(() => {
         if (tracks.length > 0 && currentTrackIndex !== null) {
             const trackId = tracks[currentTrackIndex].id;
@@ -102,7 +98,6 @@ const MusicPlayer = () => {
         }
     }, [currentTrackIndex, tracks]);
 
-    // Загружаем сохранённый уровень громкости
     useEffect(() => {
         const savedVolume = localStorage.getItem("player-volume");
         if (savedVolume !== null) {
@@ -110,7 +105,6 @@ const MusicPlayer = () => {
         }
     }, []);
 
-    // Получаем список треков
     useEffect(() => {
         const fetchTracks = async () => {
             try {
@@ -132,7 +126,6 @@ const MusicPlayer = () => {
         fetchTracks();
     }, []);
 
-    // После загрузки треков запрашиваем у сервера актуальное состояние воспроизведения
     useEffect(() => {
         if (tracks.length > 0) {
             fetch(`${import.meta.env.VITE_BACKEND_URL}/current-time`)
@@ -145,7 +138,6 @@ const MusicPlayer = () => {
         }
     }, [tracks]);
 
-    // Подключаем WebSocket для синхронизации (порт – 3010)
     useEffect(() => {
         const ws = new WebSocket("ws://localhost:3010");
         ws.onopen = () => {
@@ -157,17 +149,13 @@ const MusicPlayer = () => {
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === "currentTrack") {
-                // Если сервер сообщил о новом треке, всегда обновляем индекс,
-                // а elapsedTime обновляем только если это не тот же трек или если плеер не на паузе.
                 if (data.trackIndex !== currentTrackIndex) {
                     setCurrentTrackIndex(data.trackIndex);
                     setElapsedTime(data.elapsedTime);
-                    // Если пользователь не поставил плеер на паузу, включаем воспроизведение.
                     if (!isManuallyPausedRef.current) {
                         setIsPlaying(true);
                     }
                 } else if (!isManuallyPausedRef.current) {
-                    // Если трек тот же, обновляем elapsedTime, если плеер не на паузе.
                     setElapsedTime(data.elapsedTime);
                     setIsPlaying(true);
                 }
@@ -181,7 +169,6 @@ const MusicPlayer = () => {
         };
     }, [currentTrackIndex]);
 
-    // Синхронизируем аудиоэлемент с данными (текущий тайм и состояние воспроизведения)
     useEffect(() => {
         if (
             currentTrackIndex !== null &&
@@ -190,7 +177,6 @@ const MusicPlayer = () => {
             audioRef.current.audio.current
         ) {
             const audio = audioRef.current.audio.current;
-            // Если плеер не находится в ручной паузе, синхронизируем время и запускаем воспроизведение
             if (!isManuallyPaused) {
                 audio.currentTime = elapsedTime;
                 if (isPlaying && audio.paused) {
@@ -202,7 +188,6 @@ const MusicPlayer = () => {
         }
     }, [currentTrackIndex, elapsedTime, isPlaying, isManuallyPaused]);
 
-    // Обработчик нажатия кнопки Play/Pause
     const handlePlayPause = async (playing: boolean) => {
         setIsPlaying(playing);
         if (imgRef.current) {
@@ -210,7 +195,6 @@ const MusicPlayer = () => {
         }
         if (playing) {
             setIsManuallyPaused(false);
-            // Обновляем ref
             isManuallyPausedRef.current = false;
             try {
                 const response = await fetch(
@@ -235,7 +219,6 @@ const MusicPlayer = () => {
                 console.error("Error fetching current time from server:", error);
             }
         } else {
-            // При нажатии паузы фиксируем текущее время и отмечаем, что это ручная пауза.
             setIsManuallyPaused(true);
             isManuallyPausedRef.current = true;
             if (audioRef.current && audioRef.current.audio.current) {
@@ -252,22 +235,38 @@ const MusicPlayer = () => {
         localStorage.setItem("player-volume", newVolume.toString());
     };
 
-    // При завершении воспроизведения трека – переходим к следующему
     const handleNextTrack = () => {
         if (tracks.length > 0 && currentTrackIndex !== null) {
             const nextIndex = (currentTrackIndex + 1) % tracks.length;
             setCurrentTrackIndex(nextIndex);
-            // При смене трека сбрасываем elapsedTime и сбрасываем ручную паузу (автоматический запуск нового трека)
             setElapsedTime(0);
             setIsManuallyPaused(false);
             isManuallyPausedRef.current = false;
         }
     };
 
+    // const handleReorderTracks = async () => {
+    //     try {
+    //         const response = await fetch(
+    //             `${import.meta.env.VITE_BACKEND_URL}/api/tracks/reorder`,
+    //             { method: "POST" }
+    //         );
+    //         if (!response.ok) {
+    //             throw new Error("Failed to reorder tracks");
+    //         }
+    //         const updatedTracks = await response.json();
+    //         setTracks(updatedTracks);
+    //         setCurrentTrackIndex(0);
+    //         setElapsedTime(0);
+    //     } catch (error) {
+    //         console.error("Error reordering tracks:", error);
+    //     }
+    // };
+
     if (loadingTracks) {
         return (
             <div className="flex justify-center items-center h-screen">
-                <p>Loading tracks...</p>
+                <p>Загрузка треков...</p>
             </div>
         );
     }
@@ -283,7 +282,7 @@ const MusicPlayer = () => {
     if (currentTrackIndex === null || tracks.length === 0) {
         return (
             <div className="flex justify-center items-center h-screen">
-                <p>No track selected or track list is empty</p>
+                <p>Нет выбранного трека или список треков пуст</p>
             </div>
         );
     }
@@ -296,66 +295,74 @@ const MusicPlayer = () => {
         tracks[currentTrackIndex].Artist?.name || "Unknown Artist";
 
     return (
-        <div className="flex justify-center items-center flex-col h-screen">
-            <div className="text-center bg-[aliceblue] rounded-2xl shadow-[0.3rem_0.3rem_8rem_#2563EB]">
-                <div className="mb-4 p-5">
+        <div
+            className={classNames("min-h-screen flex justify-center items-center p-4", {
+                "animate-gradient": isPlaying,
+                "bg-gradient-to-br from-blue-100 to-blue-300": !isPlaying
+            })}
+            style={{animationPlayState: isPlaying ? "running" : "paused"}}
+        >
+            <div
+                className="bg-white bg-opacity-80 backdrop-blur-md rounded-3xl shadow-2xl p-8 max-w-md w-full text-center">
+                <div className="mb-6">
                     <img
                         ref={imgRef}
                         src={currentArtistImage}
                         alt={currentArtistName}
-                        className={`h-72 w-72 rounded-full shadow-[1px_1px_16px_black] animate-slow-spin sm:h-96 sm:w-96`}
-                        style={{ animationPlayState: "running" }}
+                        className="mx-auto h-64 w-64 sm:h-72 sm:w-72 rounded-full shadow-xl animate-slow-spin"
+                        style={{animationPlayState: isPlaying ? "running" : "paused"}}
                     />
                 </div>
-                <h2 className="text-xl font-bold mb-4">{`${currentArtistName}: ${currentTrackName}`}</h2>
-                <div className="flex items-center justify-center">
-                    <AudioPlayer
-                        ref={audioRef}
-                        className="custom-audio-player"
-                        style={{
-                            borderBottomRightRadius: "20px",
-                            borderBottomLeftRadius: "20px",
-                        }}
-                        // Используем stream-эндпоинт для воспроизведения
-                        src={`${import.meta.env.VITE_BACKEND_URL}/api/tracks/stream/${tracks[currentTrackIndex].path}`}
-                        onPlay={() => handlePlayPause(true)}
-                        onPause={() => handlePlayPause(false)}
-                        volume={volume}
-                        onVolumeChange={handleVolumeChange}
-                        autoPlayAfterSrcChange={true}
-                        autoPlay={true}
-                        listenInterval={1000}
-                        onEnded={handleNextTrack}
-                        onError={(e) => {
-                            console.error("Audio playback error:", e);
-                            // Если произошла ошибка (например, недоступен скачанный трек), переходим к следующему
-                            handleNextTrack();
-                        }}
-                        // При загрузке метаданных аудио устанавливаем позицию согласно server elapsedTime
-                        onLoadedMetaData={() => {
-                            if (
-                                audioRef.current &&
-                                audioRef.current.audio.current &&
-                                elapsedTime !== null &&
-                                !isManuallyPaused
-                            ) {
-                                audioRef.current.audio.current.currentTime = elapsedTime;
-                            }
-                        }}
-                        showSkipControls={false}
-                        showJumpControls={false}
-                        customAdditionalControls={[
-                            <IconButton onClick={handleLikeToggle} key="like-button">
-                                {isLiked ? (
-                                    <FavoriteIcon color="error" />
-                                ) : (
-                                    <FavoriteBorderIcon />
-                                )}
-                            </IconButton>,
-                        ]}
-                        customProgressBarSection={[]}
-                    />
-                </div>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                    {currentArtistName}
+                </h2>
+                <p className="text-gray-600 mb-4">{currentTrackName}</p>
+                <AudioPlayer
+                    ref={audioRef}
+                    className="custom-audio-player"
+                    style={{
+                        borderRadius: "1rem",
+                        background: "rgba(255, 255, 255, 0.9)",
+                    }}
+                    src={`${import.meta.env.VITE_BACKEND_URL}/api/tracks/stream/${tracks[currentTrackIndex].path}`}
+                    onPlay={() => handlePlayPause(true)}
+                    onPause={() => handlePlayPause(false)}
+                    volume={volume}
+                    onVolumeChange={handleVolumeChange}
+                    autoPlayAfterSrcChange={true}
+                    autoPlay={true}
+                    listenInterval={1000}
+                    onEnded={handleNextTrack}
+                    onError={(e) => {
+                        console.error("Audio playback error:", e);
+                        handleNextTrack();
+                    }}
+                    onLoadedMetaData={() => {
+                        if (
+                            audioRef.current &&
+                            audioRef.current.audio.current &&
+                            elapsedTime !== null &&
+                            !isManuallyPaused
+                        ) {
+                            audioRef.current.audio.current.currentTime = elapsedTime;
+                        }
+                    }}
+                    showSkipControls={false}
+                    showJumpControls={false}
+                    customAdditionalControls={[
+                        <IconButton onClick={handleLikeToggle} key="like-button">
+                            {isLiked ? (
+                                <FavoriteIcon color="error"/>
+                            ) : (
+                                <FavoriteBorderIcon/>
+                            )}
+                        </IconButton>,
+                        // <IconButton onClick={handleReorderTracks} key="reorder-button">
+                        //     <RefreshIcon/>
+                        // </IconButton>
+                    ]}
+                    customProgressBarSection={[]}
+                />
             </div>
         </div>
     );

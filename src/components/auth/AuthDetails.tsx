@@ -8,6 +8,7 @@ import { Button } from "@mui/material";
 interface DbUser {
     firebaseId: string;
     role: "USER" | "ADMIN";
+    login: string;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -75,15 +76,18 @@ const AuthDetails = () => {
                         className="flex items-center"
                     >
                         <img
-                            src={userIcon}
+                            src={authUser.photoURL || userIcon}
                             alt="User Icon"
-                            className="h-10 w-10 hover:opacity-75"
+                            className="h-10 w-10 hover:opacity-75 rounded-full object-cover"
                         />
                     </button>
                     {dropdownOpen && (
-                        <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                            <div className="px-4 py-2 text-gray-700">
-                                {authUser.displayName || authUser.email}
+                        <div className="absolute right-0 mt-2 w-auto bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                            <div
+                                className="px-4 py-2 text-gray-700 cursor-pointer hover:bg-gray-100"
+                                onClick={() => navigate("/profile")}
+                            >
+                                {dbUser?.login || authUser.email}
                                 {dbUser && (
                                     <span className="ml-2 text-sm text-gray-500">
                                         ({dbUser.role})
