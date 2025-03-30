@@ -139,7 +139,7 @@ const MusicPlayer = () => {
     }, [tracks]);
 
     useEffect(() => {
-        const ws = new WebSocket("ws://localhost:3010");
+        const ws = new WebSocket(`${import.meta.env.VITE_WS_URL}`);
         ws.onopen = () => {
             console.log("WebSocket connection established");
         };
