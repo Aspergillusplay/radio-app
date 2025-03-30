@@ -305,10 +305,11 @@ async function startTrack(index) {
 
     trackSwitchTimeout = setTimeout(async () => {
         let nextIndex = currentTrackIndex + 1;
+
         if (nextIndex >= tracks.length) {
             // Call the reorder route when the last track finishes
             try {
-                const response = await fetch('http://localhost:3010/api/tracks/reorder', {
+                const response = await fetch(`${process.env.VITE_BACKEND_URL}/api/tracks/reorder`, {
                     method: 'POST',
                 });
                 if (!response.ok) {

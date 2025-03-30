@@ -288,8 +288,8 @@ const MusicPlayer = () => {
     }
 
     const currentArtistImage = tracks[currentTrackIndex].Artist?.image
-        ? `http://localhost:9000/images/${tracks[currentTrackIndex].Artist.image}`
-        : "http://localhost:9000/images/defaultAlbumArt.jpg";
+        ? `${import.meta.env.VITE_MINIO_PORT}/images/${tracks[currentTrackIndex].Artist.image}`
+        : `${import.meta.env.VITE_MINIO_PORT}/images/defaultAlbumArt.jpg`;
     const currentTrackName = tracks[currentTrackIndex].name;
     const currentArtistName =
         tracks[currentTrackIndex].Artist?.name || "Unknown Artist";
