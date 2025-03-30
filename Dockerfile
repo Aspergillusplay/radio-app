@@ -20,7 +20,7 @@ RUN npm run build
 RUN npm install -g serve
 
 # Открываем порт для приложения
-EXPOSE 3000
+EXPOSE 3001
 
 # Запускаем сервер, указывая правильный путь к файлу
 CMD ["sh", "./start.sh"]
