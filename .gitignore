@@ -16,9 +16,6 @@ build
 
 server/init-db.js
 
-# Firebase configuration
-src/Firebase.ts
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
