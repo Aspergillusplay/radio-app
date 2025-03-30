@@ -267,16 +267,17 @@ const UserProfile = () => {
                         <Box
                             sx={{
                                 border: "2px dashed",
-                                borderColor: "grey.300",
+                                borderColor: newProfileImage ? "green" : "grey.300",
                                 borderRadius: 1,
                                 p: 2,
                                 textAlign: "center",
-                                mb: 2
+                                mb: 2,
+                                cursor: "pointer"
                             }}
                             onClick={() => fileInputRef.current?.click()}
                         >
                             <Typography variant="body1" gutterBottom>
-                                Drag and drop an image
+                                Drag and drop an image or click to select
                             </Typography>
                             {profileImageName && (
                                 <Typography variant="caption" display="block">
@@ -284,6 +285,18 @@ const UserProfile = () => {
                                 </Typography>
                             )}
                         </Box>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            style={{display: "none"}}
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file && file.type.startsWith("image/")) {
+                                    setNewProfileImage(file);
+                                    setProfileImageName(file.name);
+                                }
+                            }}
+                        />
                         <Button
                             variant="contained"
                             fullWidth
