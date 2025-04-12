@@ -174,8 +174,8 @@ const AudioList = () => {
                 <Grid container spacing={4}>
                     {tracks.map((track, index) => {
                         const albumImagePath = track.Artist?.image
-                            ? `${import.meta.env.VITE_MINIO_PORT}/images/${track.Artist.image}`
-                            : `${import.meta.env.VITE_MINIO_PORT}/images/defaultAlbumArt.jpg`;
+                            ? `${import.meta.env.VITE_MINIO_URL}/images/${track.Artist.image}`
+                            : `${import.meta.env.VITE_MINIO_URL}/images/defaultAlbumArt.jpg`;
                         return (
                             <Grid item xs={12} sm={6} lg={4} key={track.id}>
                                 <Card className="hover:shadow-lg transition cursor-pointer">

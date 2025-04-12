@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
-      - dokploy-network
+      - app-network
 
   backend:
     build: .
@@ -30,7 +30,7 @@ services:
       - db
       - minio
     networks:
-      - dokploy-network
+      - app-network
 
   minio:
     image: minio/minio
@@ -44,20 +44,20 @@ services:
       - "9001:9001"
     command: server /data --console-address ":9001"
     networks:
-      - dokploy-network
+      - app-network
 
   frontend:
     build: .
     container_name: frontend
     ports:
-      - "3000"
+      - "3000:3000"
     networks:
-      - dokploy-network
+      - app-network
 
 volumes:
   postgres-data:
   minio-data:
 
 networks:
-  dokploy-network:
-    external: true
+  app-network:
+    driver: bridge

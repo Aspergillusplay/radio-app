@@ -31,7 +31,7 @@ router.post('/upload-profile-image', upload.single('image'), async (req, res) =>
 
         // Генерируем URL для доступа к картинке
         // (Настройте URL согласно вашей конфигурации MinIO или другого хранилища)
-        const imageUrl = `${import.meta.env.VITE_MINIO_PORT}/${bucketName}/${fileName}`;
+        const imageUrl = `${import.meta.env.VITE_MINIO_URL}/${bucketName}/${fileName}`;
 
         // Находим пользователя по firebaseId и обновляем информацию о картинке
         const user = await User.findOne({ where: { firebaseId } });
