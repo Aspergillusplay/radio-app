@@ -245,15 +245,6 @@ const MusicPlayer = () => {
         }
     };
 
-    const getTrackUrl = (filename: string) => {
-        // Use direct MinIO URL in production
-        if (window.location.hostname === 'vortex.fm' || window.location.hostname === 'www.vortex.fm') {
-            return `${window.location.origin}/minio/audio/${filename}`;
-        }
-        // Use API for local development
-        return `${import.meta.env.VITE_BACKEND_URL}/api/tracks/stream/${filename}`;
-    };
-
     // const handleReorderTracks = async () => {
     //     try {
     //         const response = await fetch(
@@ -333,7 +324,7 @@ const MusicPlayer = () => {
                         borderRadius: "1rem",
                         background: "rgba(255, 255, 255, 0.9)",
                     }}
-                    src={getTrackUrl(tracks[currentTrackIndex].path)}
+                    src={`${import.meta.env.VITE_BACKEND_URL}/api/tracks/stream/${tracks[currentTrackIndex].path}`}
                     onPlay={() => handlePlayPause(true)}
                     onPause={() => handlePlayPause(false)}
                     volume={volume}
