@@ -42,3 +42,36 @@
     /* Управление анимацией через React (inline-стиль) */
     animation-play-state: paused;
 }
+
+.rhap_stacked .rhap_controls-section {
+    margin: 0 !important;
+}
+
+@keyframes border-gradient-animation {
+  0% {
+    border-image-source: linear-gradient(0deg, #ff7e5f, #feb47b, #86a8e7, #91eae4);
+  }
+  25% {
+    border-image-source: linear-gradient(90deg, #ff7e5f, #feb47b, #86a8e7, #91eae4);
+  }
+  50% {
+    border-image-source: linear-gradient(180deg, #ff7e5f, #feb47b, #86a8e7, #91eae4);
+  }
+  75% {
+    border-image-source: linear-gradient(270deg, #ff7e5f, #feb47b, #86a8e7, #91eae4);
+  }
+  100% {
+    border-image-source: linear-gradient(360deg, #ff7e5f, #feb47b, #86a8e7, #91eae4);
+  }
+}
+
+.animated-border {
+  border: 4px solid;
+  border-image-slice: 1;
+  animation: border-gradient-animation 6s linear infinite;
+  animation-play-state: paused;
+}
+
+.animated-border.playing {
+  animation-play-state: running;
+}

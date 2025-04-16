@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import AudioPlayer from "react-h5-audio-player";
 import "react-h5-audio-player/lib/styles.css";
-import { IconButton } from "@mui/material";
+import {CircularProgress, IconButton, Typography} from "@mui/material";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import FavoriteIcon from '@mui/icons-material/Favorite';
 // import RefreshIcon from '@mui/icons-material/Refresh';
 import classNames from 'classnames';
+import { Box } from "@mui/material";
 
 interface IArtist {
     id: number;
@@ -33,6 +34,7 @@ const MusicPlayer = () => {
     const [isLiked, setIsLiked] = useState(false);
     const [isManuallyPaused, setIsManuallyPaused] = useState(false);
     const isManuallyPausedRef = useRef(false);
+    const [isHeaderVisible, setIsHeaderVisible] = useState(true);
 
     const imgRef = useRef<HTMLImageElement>(null);
     const audioRef = useRef<AudioPlayer>(null);
@@ -40,6 +42,10 @@ const MusicPlayer = () => {
     useEffect(() => {
         isManuallyPausedRef.current = isManuallyPaused;
     }, [isManuallyPaused]);
+
+    const toggleHeaderVisibility = () => {
+        setIsHeaderVisible(!isHeaderVisible);
+    };
 
     const handleLikeToggle = async () => {
         if (currentTrackIndex === null) return;
@@ -70,6 +76,13 @@ const MusicPlayer = () => {
             console.error('Error updating like status:', error);
         }
     };
+
+    useEffect(() => {
+        const header = document.querySelector('header');
+        if (header) {
+            header.style.display = isHeaderVisible ? 'block' : 'none';
+        }
+    }, [isHeaderVisible]);
 
     useEffect(() => {
         if (tracks.length > 0 && currentTrackIndex !== null) {
@@ -263,11 +276,63 @@ const MusicPlayer = () => {
     //     }
     // };
 
+
+
     if (loadingTracks) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <p>Загрузка треков...</p>
-            </div>
+            <Box
+                sx={{
+                    height: "100vh",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    gap: 3
+                }}
+            >
+                <Box
+                    sx={{
+                        display: "flex",
+                        position: "relative",
+                        alignItems: "center",
+                        justifyContent: "center"
+                    }}
+                >
+                    <CircularProgress
+                        size={60}
+                        thickness={2.5}
+                        sx={{
+                            color: "primary.main",
+                            opacity: 0.8
+                        }}
+                    />
+                    <Box
+                        component="span"
+                        sx={{
+                            position: "absolute",
+                            display: "flex",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            width: 20,
+                            height: 20,
+                            borderRadius: "50%",
+                            backgroundColor: "primary.light",
+                            boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+                        }}
+                    />
+                </Box>
+                <Typography
+                    variant="body2"
+                    sx={{
+                        color: "text.secondary",
+                        fontWeight: 400,
+                        letterSpacing: 0.5,
+                        opacity: 0.9
+                    }}
+                >
+                    Loading tracks...
+                </Typography>
+            </Box>
         );
     }
 
@@ -282,7 +347,7 @@ const MusicPlayer = () => {
     if (currentTrackIndex === null || tracks.length === 0) {
         return (
             <div className="flex justify-center items-center h-screen">
-                <p>Нет выбранного трека или список треков пуст</p>
+                <p>Track doesnt exist</p>
             </div>
         );
     }
@@ -303,23 +368,24 @@ const MusicPlayer = () => {
             style={{animationPlayState: isPlaying ? "running" : "paused"}}
         >
             <div
-                className="bg-white bg-opacity-80 backdrop-blur-md rounded-3xl shadow-2xl p-8 max-w-md w-full text-center">
+                className="bg-white bg-opacity-50 backdrop-blur-md rounded-3xl shadow-2xl p-8 max-w-md w-full text-center">
                 <div className="mb-6">
                     <img
                         ref={imgRef}
                         src={currentArtistImage}
                         alt={currentArtistName}
-                        className="mx-auto h-64 w-64 sm:h-72 sm:w-72 rounded-full shadow-xl animate-slow-spin"
+                        className="mx-auto h-48 w-48 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-full shadow-xl animate-slow-spin cursor-pointer"
                         style={{animationPlayState: isPlaying ? "running" : "paused"}}
+                        onClick={toggleHeaderVisibility}
                     />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                <h2 className="text-2xl font-bold text-gray-800">
                     {currentArtistName}
                 </h2>
                 <p className="text-gray-600 mb-4">{currentTrackName}</p>
                 <AudioPlayer
                     ref={audioRef}
-                    className="custom-audio-player"
+                    className="custom-audio-player m-0"
                     style={{
                         borderRadius: "1rem",
                         background: "rgba(255, 255, 255, 0.9)",

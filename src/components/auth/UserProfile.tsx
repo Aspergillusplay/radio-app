@@ -276,10 +276,11 @@ const UserProfile = () => {
                             }}
                             onClick={() => fileInputRef.current?.click()}
                         >
-                            <Typography variant="body1" gutterBottom>
-                                Drag and drop an image or click to select
-                            </Typography>
-                            {profileImageName && (
+                            {!profileImageName ? (
+                                <Typography variant="body1" gutterBottom>
+                                    Drag and drop an image or click to select
+                                </Typography>
+                            ) : (
                                 <Typography variant="caption" display="block">
                                     Selected file: {profileImageName}
                                 </Typography>
@@ -289,6 +290,7 @@ const UserProfile = () => {
                             type="file"
                             ref={fileInputRef}
                             style={{display: "none"}}
+                            accept="image/*"
                             onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file && file.type.startsWith("image/")) {
