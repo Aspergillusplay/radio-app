@@ -232,16 +232,12 @@ const MusicPlayer = () => {
 
     // Setup WebSocket connection once (not on every track change)
     useEffect(() => {
-        // Ensure ws URL ends with /ws for proper proxy routing
         const setupWebsocket = () => {
-            const baseUrl = import.meta.env.VITE_WS_URL;
-            const wsUrl = baseUrl.endsWith('/ws') ? baseUrl : `${baseUrl.replace(/^http/, 'ws')}/ws`;
+            const apiBase = import.meta.env.VITE_BACKEND_URL.replace(/\/$/, "");
+            const wsUrl = apiBase.replace(/^http/, 'ws') + '/api/';
+            console.log('Connecting WebSocket to', wsUrl);
 
-            // Close existing connection if any
-            if (wsRef.current) {
-                wsRef.current.close();
-            }
-
+            wsRef.current?.close();
             const ws = new WebSocket(wsUrl);
 
             ws.onopen = () => console.log('WebSocket connection established');
@@ -250,13 +246,10 @@ const MusicPlayer = () => {
                 try {
                     const data = JSON.parse(ev.data);
                     if (data.type === 'currentTrack') {
-                        // Queue track change without immediately updating display
                         if (data.trackIndex !== currentTrackIndex) {
-                            if (isInitialLoad) {
-                                setIsAudioLoading(true);
-                            }
-                            setNextTrackIndex(data.trackIndex); // Store next track index
-                            setCurrentTrackIndex(data.trackIndex); // Update current for audio source
+                            if (isInitialLoad) setIsAudioLoading(true);
+                            setNextTrackIndex(data.trackIndex);
+                            setCurrentTrackIndex(data.trackIndex);
                             setElapsedTime(data.elapsedTime);
                             if (!isManuallyPausedRef.current) setIsPlaying(true);
                         } else if (!isManuallyPausedRef.current) {
@@ -264,13 +257,12 @@ const MusicPlayer = () => {
                             setIsPlaying(true);
                         }
                     }
-                } catch (error) {
-                    console.error('Error handling WebSocket message:', error);
+                } catch (err) {
+                    console.error('Error handling WebSocket message:', err);
                 }
             };
             ws.onclose = () => {
-                console.log('WebSocket connection closed');
-                // Retry connection after a delay
+                console.log('WebSocket closed — retrying in 2s');
                 setTimeout(setupWebsocket, 2000);
             };
 
@@ -278,16 +270,8 @@ const MusicPlayer = () => {
         };
 
         setupWebsocket();
-
-        return () => {
-            if (wsRef.current) {
-                // Use a local variable to avoid closure issues
-                const ws = wsRef.current;
-                wsRef.current = null;
-                ws.close();
-            }
-        };
-    }, []); // Empty dependency array - only run once on component mount
+        return () => { wsRef.current?.close(); wsRef.current = null; };
+    }, []);
 
     // Safely attempt to play audio
     const safePlayAudio = (audio: HTMLAudioElement) => {
