@@ -23,7 +23,7 @@ interface ITrack {
 }
 
 interface DbUser {
-    id: number; // Database user ID
+    id: number;               // Database user ID
     firebaseId: string;
     role: "USER" | "ADMIN";
     createdAt?: string;
@@ -31,9 +31,9 @@ interface DbUser {
 }
 
 const MusicPlayer = () => {
+    // --- state & refs ---
     const [tracks, setTracks] = useState<ITrack[]>([]);
     const [currentTrackIndex, setCurrentTrackIndex] = useState<number | null>(null);
-    // New state to separate what's displayed from what's loading
     const [displayTrackIndex, setDisplayTrackIndex] = useState<number | null>(null);
     const [nextTrackIndex, setNextTrackIndex] = useState<number | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -54,52 +54,39 @@ const MusicPlayer = () => {
     const playRequestPending = useRef(false);
     const wsRef = useRef<WebSocket | null>(null);
     const pendingTrackChange = useRef(false);
-
     const imgRef = useRef<HTMLImageElement>(null);
     const audioRef = useRef<AudioPlayer>(null);
 
-    // Keep the manual pause flag in ref for callbacks
+    // Keep manual-pause ref in sync
     useEffect(() => {
         isManuallyPausedRef.current = isManuallyPaused;
     }, [isManuallyPaused]);
 
-    // Handle API errors
+    // --- API error handler ---
     const handleApiError = (message: string, error: unknown) => {
         console.error(message, error);
         setErrorMessage(`${message}. Please try again.`);
         setShowError(true);
     };
 
-    // Close error snackbar
-    const handleCloseError = () => {
-        setShowError(false);
-    };
+    const handleCloseError = () => setShowError(false);
 
-    // Set up authentication listener
+    // --- Auth listener ---
     useEffect(() => {
-        console.log("Setting up auth listener in MusicPlayer");
         const unsubscribe = auth.onAuthStateChanged(user => {
             if (user) {
-                console.log("Firebase user logged in:", user.uid);
                 setFirebaseUserId(user.uid);
-
-                fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users/${user.uid}`)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error("Failed to fetch user data");
-                        }
-                        return response.json();
+                fetch(`${import.meta.env.VITE_BACKEND_URL}/users/${user.uid}`)
+                    .then(res => {
+                        if (!res.ok) throw new Error("Failed to fetch user data");
+                        return res.json();
                     })
-                    .then((data: DbUser) => {
-                        console.log("Database user data received:", data);
-                        setDbUser(data);
-                    })
-                    .catch((error) => {
-                        console.error("Error fetching DB user:", error);
+                    .then((data: DbUser) => setDbUser(data))
+                    .catch(err => {
+                        console.error("Error fetching DB user:", err);
                         setDbUser(null);
                     });
             } else {
-                console.log("No user logged in");
                 setFirebaseUserId(null);
                 setDbUser(null);
             }
@@ -107,36 +94,33 @@ const MusicPlayer = () => {
         return () => unsubscribe();
     }, []);
 
-    // Toggle header visibility
+    // --- Header toggle ---
     const toggleHeaderVisibility = () => {
         setIsHeaderVisible(v => !v);
     };
+    useEffect(() => {
+        const header = document.querySelector('header');
+        if (header) header.setAttribute('style', `display: ${isHeaderVisible ? 'block' : 'none'}`);
+    }, [isHeaderVisible]);
 
-    // Handle like/unlike track
+    // --- Like/unlike track ---
     const handleLikeToggle = async () => {
-        if (displayTrackIndex === null || !dbUser || !dbUser.id) {
+        if (displayTrackIndex === null || !dbUser?.id) {
             setErrorMessage("Please log in to like tracks");
             setShowError(true);
             return;
         }
-
         const trackId = tracks[displayTrackIndex].id;
-        console.log(`Toggling like for track ${trackId}, using DB user ID: ${dbUser.id}`);
-
         try {
             let response;
             if (isLiked) {
-                console.log(`Removing like for track ${trackId}, DB userId: ${dbUser.id}`);
                 response = await fetch(
-                    `${import.meta.env.VITE_BACKEND_URL}/api/tracks/like?TrackId=${trackId}&UserId=${dbUser.id}`,
-                    {
-                        method: "DELETE",
-                    }
+                    `${import.meta.env.VITE_BACKEND_URL}/tracks/like?TrackId=${trackId}&UserId=${dbUser.id}`,
+                    { method: "DELETE" }
                 );
             } else {
-                console.log(`Adding like for track ${trackId}, DB userId: ${dbUser.id}`);
                 response = await fetch(
-                    `${import.meta.env.VITE_BACKEND_URL}/api/tracks/like`,
+                    `${import.meta.env.VITE_BACKEND_URL}/tracks/like`,
                     {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -144,68 +128,48 @@ const MusicPlayer = () => {
                     }
                 );
             }
-            if (!response.ok) {
-                console.error("Error response:", response.status, response.statusText);
-                const errorText = await response.text().catch(() => "Unknown error");
-                console.error("Error details:", errorText);
-                throw new Error("Failed to update like status");
-            }
+            if (!response.ok) throw new Error("Failed to update like status");
             setIsLiked(l => !l);
         } catch (err) {
             handleApiError("Error updating like status", err);
         }
     };
 
-    // Show/hide header element outside React tree
+    // --- Fetch like status ---
     useEffect(() => {
-        const header = document.querySelector('header');
-        if (header) header.setAttribute('style', `display: ${isHeaderVisible ? 'block' : 'none'}`);
-    }, [isHeaderVisible]);
-
-    // Fetch like status for the current track
-    useEffect(() => {
-        if (tracks.length === 0 || displayTrackIndex === null || !dbUser || !dbUser.id) return;
-        const trackId = tracks[displayTrackIndex].id;
-
+        if (tracks.length === 0 || displayTrackIndex === null || !dbUser?.id) return;
         (async () => {
             try {
-                console.log(`Checking like status for track ${trackId} with DB userId: ${dbUser.id}`);
                 const res = await fetch(
-                    `${import.meta.env.VITE_BACKEND_URL}/api/tracks/like/status`,
+                    `${import.meta.env.VITE_BACKEND_URL}/tracks/like/status`,
                     {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ TrackId: trackId, UserId: dbUser.id }),
+                        body: JSON.stringify({ TrackId: tracks[displayTrackIndex].id, UserId: dbUser.id }),
                     }
                 );
-                if (!res.ok) {
-                    console.error("Error response:", res.status, res.statusText);
-                    const errorText = await res.text().catch(() => "Unknown error");
-                    console.error("Error details:", errorText);
-                    throw new Error('Failed to fetch like status');
-                }
-                const data = await res.json();
-                setIsLiked(data.isLiked);
+                if (!res.ok) throw new Error('Failed to fetch like status');
+                const { isLiked } = await res.json();
+                setIsLiked(isLiked);
             } catch (e) {
                 console.error('Error fetching like status:', e);
             }
         })();
     }, [displayTrackIndex, tracks, dbUser?.id]);
 
-    // Restore saved volume
+    // --- Restore volume ---
     useEffect(() => {
         const saved = localStorage.getItem('player-volume');
         if (saved !== null) setVolume(parseFloat(saved));
     }, []);
 
-    // Load tracks list
+    // --- Load track list ---
     useEffect(() => {
         (async () => {
             try {
-                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/tracks`);
+                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/tracks`);
                 if (!res.ok) throw new Error('Failed to fetch tracks');
-                const data: ITrack[] = await res.json();
-                setTracks(data);
+                setTracks(await res.json());
             } catch (e) {
                 console.error('Error fetching tracks:', e);
                 setTracksError('Failed to load track list');
@@ -215,48 +179,41 @@ const MusicPlayer = () => {
         })();
     }, []);
 
-    // On initial tracks load, fetch current playback info
+    // --- Initial playback info ---
     useEffect(() => {
         if (tracks.length === 0) return;
         fetch(`${import.meta.env.VITE_BACKEND_URL}/current-time`)
             .then(r => r.json())
             .then(d => {
-                const initialIndex = d.trackIndex;
-                setCurrentTrackIndex(initialIndex);
-                setDisplayTrackIndex(initialIndex); // Also set display track on initial load
+                setCurrentTrackIndex(d.trackIndex);
+                setDisplayTrackIndex(d.trackIndex);
                 setElapsedTime(d.elapsedTime);
-                setIsPlaying(true); // Auto-play on initial load
+                setIsPlaying(true);
             })
             .catch(e => console.error('Error fetching current time on mount:', e));
     }, [tracks]);
 
-    // Setup WebSocket connection once (not on every track change)
+    // --- WebSocket setup (once) ---
     useEffect(() => {
-        // Ensure ws URL ends with /ws for proper proxy routing
         const setupWebsocket = () => {
-            const baseUrl = import.meta.env.VITE_WS_URL;
-            const wsUrl = baseUrl.endsWith('/ws') ? baseUrl : `${baseUrl.replace(/^http/, 'ws')}/ws`;
+            // Derive WS URL from the same backend URL, switching protocol and ensuring trailing slash
+            const wsUrl = import.meta.env.VITE_BACKEND_URL.replace(/^http/, 'ws') + '/';
+            console.log('Connecting WebSocket to', wsUrl);
 
-            // Close existing connection if any
-            if (wsRef.current) {
-                wsRef.current.close();
-            }
+            // Close old socket if any
+            wsRef.current?.close();
 
             const ws = new WebSocket(wsUrl);
-
             ws.onopen = () => console.log('WebSocket connection established');
             ws.onerror = e => console.error('WebSocket error:', e);
             ws.onmessage = ev => {
                 try {
                     const data = JSON.parse(ev.data);
                     if (data.type === 'currentTrack') {
-                        // Queue track change without immediately updating display
                         if (data.trackIndex !== currentTrackIndex) {
-                            if (isInitialLoad) {
-                                setIsAudioLoading(true);
-                            }
-                            setNextTrackIndex(data.trackIndex); // Store next track index
-                            setCurrentTrackIndex(data.trackIndex); // Update current for audio source
+                            if (isInitialLoad) setIsAudioLoading(true);
+                            setNextTrackIndex(data.trackIndex);
+                            setCurrentTrackIndex(data.trackIndex);
                             setElapsedTime(data.elapsedTime);
                             if (!isManuallyPausedRef.current) setIsPlaying(true);
                         } else if (!isManuallyPausedRef.current) {
@@ -269,8 +226,7 @@ const MusicPlayer = () => {
                 }
             };
             ws.onclose = () => {
-                console.log('WebSocket connection closed');
-                // Retry connection after a delay
+                console.log('WebSocket connection closed — retrying in 2s');
                 setTimeout(setupWebsocket, 2000);
             };
 
@@ -278,16 +234,8 @@ const MusicPlayer = () => {
         };
 
         setupWebsocket();
-
-        return () => {
-            if (wsRef.current) {
-                // Use a local variable to avoid closure issues
-                const ws = wsRef.current;
-                wsRef.current = null;
-                ws.close();
-            }
-        };
-    }, []); // Empty dependency array - only run once on component mount
+        return () => { wsRef.current?.close(); wsRef.current = null; };
+    }, []);
 
     // Safely attempt to play audio
     const safePlayAudio = (audio: HTMLAudioElement) => {
