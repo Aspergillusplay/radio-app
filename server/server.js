@@ -298,9 +298,13 @@ async function startTrack(index) {
         return;
     }
 
-    const delay = currentTrack.duration * 1000;
+    // Add a small buffer to the duration to ensure complete playback
+    // This prevents the next track signal from coming too early
+    const durationWithBuffer = (currentTrack.duration || 200) + 3; // 3-second buffer
+    const delay = durationWithBuffer * 1000;
+
     console.log(
-        `Now playing "${currentTrack.name}" (order: ${currentTrack.order}) with duration ${currentTrack.duration} sec. Next track in ${delay} ms.`
+        `Now playing "${currentTrack.name}" (order: ${currentTrack.order}) with duration ${currentTrack.duration} sec. Adding 3-sec buffer. Next track in ${delay} ms.`
     );
 
     trackSwitchTimeout = setTimeout(async () => {
