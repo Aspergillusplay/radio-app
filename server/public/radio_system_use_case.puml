@@ -1,31 +1,54 @@
 @startuml radio_system_detailed
 
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam padding 5
+skinparam shadowing false
+
 skinparam actorStyle awesome
 skinparam packageStyle rectangle
 skinparam usecaseBackgroundColor #F8F9FA
-skinparam usecaseBorderColor #DEE2E6
-skinparam actorBorderColor #212529
+skinparam usecaseBorderColor #6C757D
+skinparam usecaseFontSize 12
+skinparam actorBorderColor #343A40
 skinparam actorBackgroundColor #F8F9FA
 skinparam arrowColor #495057
 skinparam noteBorderColor #6C757D
 skinparam noteBackgroundColor #E9ECEF
+skinparam noteFontSize 11
+skinparam packageBackgroundColor transparent
+skinparam packageBorderColor #ADB5BD
+skinparam packageTitleFontSize 14
+skinparam packageFontStyle bold
+
 left to right direction
 
-' Actors
-actor "Poslucháč" as Listener
-actor "Administrátor" as Admin
-Admin -|> Listener : rozširuje
+title Radiový Systém - Diagram prípadov použitia
+
+legend right
+  <b>Legenda:</b>
+  |= Symbol |= Význam |
+  |<#F8F9FA> Oval |  Prípad použitia |
+  |<#F0F0F0> Actor | Aktér systému |
+  |<#E9ECEF> Note | Doplňujúca informácia |
+  | ---> | Vzťah aktér-prípad |
+  | ..> | Inclusion/Extension vzťah |
+endlegend
+
+actor "Poslucháč" as Listener #F0F0F0
+actor "Administrátor" as Admin #F0F0F0
+Admin -|> Listener : <<rozširuje>>
 
 package "Rádiový Systém" {
-  ' Main use cases based on requirements
-  package "FR1: Živé streamovanie" {
+  package "FR1: Živé streamovanie" as FR1 #FFFACD {
     usecase "Počúvať živý stream" as ListenLiveStream
     usecase "Zobraziť informácie o skladbe" as ViewTrackInfo
     usecase "Prepnúť sieť bez prerušenia" as SwitchNetwork
     usecase "Synchronizácia cez WebSocket" as WebSocketSync
   }
 
-  package "FR2: Užívateľský účet" {
+  package "FR2: Užívateľský účet" as FR2 #E0FFFF {
     usecase "Registrácia" as Register
     usecase "Prihlásenie" as Login
     usecase "Spravovať profil" as ManageProfile
@@ -34,28 +57,28 @@ package "Rádiový Systém" {
     usecase "Nahrať profilovú fotku" as UploadProfilePic
   }
 
-  package "FR3: Želania" {
+  package "FR3: Želania" as FR3 #FFE4E1 {
     usecase "Odoslať želanie" as SendWish
     usecase "Zadať text želania" as EnterWishText
   }
 
-  package "FR4: Hodnotenie" {
+  package "FR4: Hodnotenie" as FR4 #F0FFF0 {
     usecase "Hodnotiť skladbu" as RateTrack
     usecase "Sledovať hodnotenia" as ViewRatings
     usecase "Označiť skladbu ako obľúbenú" as LikeTrack
   }
 
-  package "FR5: História želaní" {
+  package "FR5: História želaní" as FR5 #E6E6FA {
     usecase "Zobraziť vlastné želania" as ViewOwnWishes
     usecase "Zobraziť všetky želania" as ViewAllWishes
   }
 
-  package "FR6: Fronta prehrávania" {
+  package "FR6: Fronta prehrávania" as FR6 #FFF0F5 {
     usecase "Pridať skladbu do fronty" as QueueTrack
     usecase "Zobraziť frontu" as ViewQueue
   }
 
-  package "FR7: Administrácia" {
+  package "FR7: Administrácia" as FR7 #F5F5DC {
     usecase "Spravovať frontu" as ManageQueue
     usecase "Preusporiadať skladby podľa hodnotení" as ReorderTracks
     usecase "Schváliť/zamietnuť želania" as ModerateWishes
@@ -107,38 +130,42 @@ Admin --> ManageArtists
 Admin --> UploadTracks
 Admin --> ReorderTracks
 
-' Add notes for important requirements
-note right of ListenLiveStream
-  Buffer ≤ 1,5 s
-  Bez prerušenia pri prepnutí siete
+note right of ListenLiveStream #E9ECEF
+  <b>Požiadavka NFR2:</b>
+  • Buffer ≤ 1,5 s
+  • Bez prerušenia pri prepnutí siete
 end note
 
-note right of SendWish
-  Prianie uložené v DB
-  Potvrdenie < 200 ms
+note right of SendWish #E9ECEF
+  <b>Požiadavka NFR3:</b>
+  • Prianie uložené v DB
+  • Potvrdenie < 200 ms
 end note
 
-note right of RateTrack
-  Hodnotenie 1-5 hviezdičiek
-  Zobrazenie < 150 ms
+note right of RateTrack #E9ECEF
+  <b>Požiadavka NFR4:</b>
+  • Hodnotenie 1-5 hviezdičiek
+  • Zobrazenie < 150 ms
 end note
 
-note right of QueueTrack
-  Nová skladba sa objaví
-  na vrchu fronty < 200 ms
+note right of QueueTrack #E9ECEF
+  <b>Požiadavka NFR5:</b>
+  • Nová skladba sa objaví
+    na vrchu fronty < 200 ms
 end note
 
-note bottom of ReorderTracks
-  Algoritmus preusporiadania:
-  - Skupina A (top 30% obľúbených)
-  - Skupina B (ďalších 30%)
-  - Skupina C (zostávajúce)
-  - Duplikáty pre A a B skupiny
+note bottom of ReorderTracks #E9ECEF
+  <b>Algoritmus preusporiadania:</b>
+  • Skupina A (top 30% obľúbených)
+  • Skupina B (ďalších 30%)
+  • Skupina C (zostávajúce)
+  • Duplikáty pre A a B skupiny
 end note
 
-note right of WebSocketSync
-  Aktuálna skladba a čas
-  synchronizované v reálnom čase
+note right of WebSocketSync #E9ECEF
+  <b>Synchronizácia:</b>
+  • Aktuálna skladba a čas
+  • Synchronizované v reálnom čase
 end note
 
 @enduml

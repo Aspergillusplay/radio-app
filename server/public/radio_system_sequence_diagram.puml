@@ -3,53 +3,96 @@
 !theme plain
 skinparam backgroundColor white
 skinparam sequenceArrowThickness 2
-skinparam participantBorderThickness 1
+skinparam participantBorderThickness 1.5
 skinparam noteBorderThickness 1
-skinparam BoxPadding 10
+skinparam BoxPadding 15
 skinparam sequenceGroupBorderThickness 2
-skinparam sequenceGroupBodyBackgroundColor #FAFAFA
+skinparam sequenceGroupBodyBackgroundColor #F8F9FA
+skinparam sequenceGroupBorderColor #6C757D
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+skinparam noteFontSize 12
+skinparam noteFontStyle italic
+skinparam groupFontStyle bold
+
+skinparam ActorBackgroundColor #E9ECEF
+skinparam ActorBorderColor #343A40
+skinparam ParticipantBackgroundColor #F8F9FA
+skinparam ParticipantBorderColor #6C757D
+skinparam DatabaseBackgroundColor #E0F7FA
+skinparam DatabaseBorderColor #0097A7
 
 title Zaradenie skladby do fronty - Sekvenčný diagram
 
-actor Poslucháč as user
-participant "Klientský prehliadač" as browser
-participant "API Server" as api
-participant "Autentifikačná služba" as auth
-database "Databáza" as db
+actor "Poslucháč" as user #E9ECEF
+participant "Klientský\nprehliadač" as browser #F8F9FA
+participant "API Server" as api #F8F9FA
+participant "Autentifikačná\nslužba" as auth #F8F9FA
+database "Databáza" as db #E0F7FA
 
-note over browser, db
-  <b>NFR1:</b> API odozva pod 100 ms (95% požiadaviek)
-  <b>NFR5:</b> Interakčné prvky reagujú < 40 ms
+note over browser, db #E9ECEF
+  <b>Výkonnostné požiadavky</b>
+  <u>NFR1:</u> API odozva pod 100 ms (95% požiadaviek)
+  <u>NFR5:</u> Interakčné prvky reagujú < 40 ms
 end note
 
 user -> browser ++: Kliknutie na tlačidlo "Zaradiť skladbu"
+note right of user #FFF0F5
+  Používateľská
+  interakcia
+end note
+
 browser -> browser: Reakcia UI na kliknutie (<40ms)
 
-browser -> api ++: POST /api/tracks/queue-next/{id}\nauthToken, trackId
-api -> auth ++: Overenie JWT tokenu
-auth --> api --: Užívateľ overený
+browser -> api ++: POST /api/tracks/queue-next/{id}
+note right of browser #F0F0F0
+  Dáta:
+  - authToken
+  - trackId
+end note
 
-group Validácia a spracovanie
+api -> auth ++: Overenie JWT tokenu
+auth --> api --: <color #2E8B57>Užívateľ overený</color>
+
+group <color #20639B>Validácia a spracovanie</color>
   api -> db ++: Získanie aktuálnej skladby
-  db --> api --: Aktuálna skladba
+  db --> api --: <color #2E8B57>Aktuálna skladba</color>
 
   api -> db ++: Získanie vybranej skladby
-  db --> api --: Vybraná skladba
+  db --> api --: <color #2E8B57>Vybraná skladba</color>
 
   api -> api: Výpočet nového poradia
+  note right of api #F0F8FF
+    Aplikácia algoritmu
+    pre správne zoradenie
+  end note
 
   api -> db ++: Aktualizácia poradia skladieb
-  db --> api --: Potvrdenie aktualizácie
+  db --> api --: <color #2E8B57>Potvrdenie aktualizácie</color>
 end group
 
-api --> browser --: 200 OK (odpoveď < 100ms)
+api --> browser --: <color #2E8B57>200 OK</color> (odpoveď < 100ms)
 browser --> user: Zobrazenie úspechu
 
-note right of api
-  Merané metriky:
-  - Celková latencia API: <100ms
-  - Validácia: <20ms
-  - DB operácie: <50ms
+note right of api #E0F7FA
+  <b>Merané metriky:</b>
+  • Celková latencia API: <100ms
+  • Validácia: <20ms
+  • DB operácie: <50ms
+  • Odozva používateľského rozhrania: <40ms
 end note
+
+legend right
+  <b>Legenda:</b>
+  |= Typ |= Význam |
+  | <color #2E8B57>Zelená správa</color> | Úspešná odpoveď |
+  | <#F0F8FF>Modrá poznámka</color> | Výpočtový proces |
+  | <#F0F0F0>Šedá poznámka</color> | Dátové informácie |
+endlegend
 
 @enduml
