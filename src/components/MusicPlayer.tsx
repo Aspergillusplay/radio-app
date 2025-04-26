@@ -52,6 +52,7 @@ const MusicPlayer = () => {
 
     const imgRef = useRef<HTMLImageElement>(null);
     const audioRef = useRef<AudioPlayer>(null);
+    const preloadAudioRef = useRef<HTMLAudioElement | null>(null);
 
     // Keep the manual pause flag in ref for callbacks
     useEffect(() => {
@@ -68,6 +69,38 @@ const MusicPlayer = () => {
     // Close error snackbar
     const handleCloseError = () => {
         setShowError(false);
+    };
+
+    // Create preload audio element
+    useEffect(() => {
+        const preloadAudio = new Audio();
+        preloadAudio.preload = "auto";
+        preloadAudio.volume = 0;
+        preloadAudioRef.current = preloadAudio;
+
+        return () => {
+            if (preloadAudioRef.current) {
+                preloadAudioRef.current.pause();
+                preloadAudioRef.current.src = '';
+            }
+        };
+    }, []);
+
+    // Preload next track
+    const preloadNextTrack = () => {
+        if (!tracks.length || currentTrackIndex === null || !preloadAudioRef.current) return;
+
+        // Calculate next track index
+        const nextIndex = (currentTrackIndex + 1) % tracks.length;
+        const nextTrack = tracks[nextIndex];
+
+        if (!nextTrack) return;
+
+        const nextAudioSrc = `${import.meta.env.VITE_BACKEND_URL}/api/tracks/stream/${nextTrack.path}`;
+
+        console.log(`Preloading next track: ${nextTrack.name}`);
+        preloadAudioRef.current.src = nextAudioSrc;
+        preloadAudioRef.current.load(); // Start loading the audio file
     };
 
     // Set up authentication listener
@@ -352,6 +385,9 @@ const MusicPlayer = () => {
         if (isPlaying && !isManuallyPausedRef.current && audioRef.current?.audio.current) {
             safePlayAudio(audioRef.current.audio.current);
         }
+
+        // Preload next track once current track is ready
+        preloadNextTrack();
     };
 
     // Render loading state
