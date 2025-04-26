@@ -33,9 +33,6 @@ interface DbUser {
 const MusicPlayer = () => {
     const [tracks, setTracks] = useState<ITrack[]>([]);
     const [currentTrackIndex, setCurrentTrackIndex] = useState<number | null>(null);
-    // New state to separate what's displayed from what's loading
-    const [displayTrackIndex, setDisplayTrackIndex] = useState<number | null>(null);
-    const [nextTrackIndex, setNextTrackIndex] = useState<number | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(0.5);
     const [elapsedTime, setElapsedTime] = useState<number | null>(null);
@@ -44,7 +41,6 @@ const MusicPlayer = () => {
     const [isLiked, setIsLiked] = useState(false);
     const [isManuallyPaused, setIsManuallyPaused] = useState(false);
     const [isAudioLoading, setIsAudioLoading] = useState(false);
-    const [isInitialLoad, setIsInitialLoad] = useState(true);
     const isManuallyPausedRef = useRef(false);
     const [isHeaderVisible, setIsHeaderVisible] = useState(true);
     const [, setFirebaseUserId] = useState<string | null>(null);
@@ -53,7 +49,6 @@ const MusicPlayer = () => {
     const [showError, setShowError] = useState(false);
     const playRequestPending = useRef(false);
     const wsRef = useRef<WebSocket | null>(null);
-    const pendingTrackChange = useRef(false);
 
     const imgRef = useRef<HTMLImageElement>(null);
     const audioRef = useRef<AudioPlayer>(null);
@@ -114,13 +109,13 @@ const MusicPlayer = () => {
 
     // Handle like/unlike track
     const handleLikeToggle = async () => {
-        if (displayTrackIndex === null || !dbUser || !dbUser.id) {
+        if (currentTrackIndex === null || !dbUser || !dbUser.id) {
             setErrorMessage("Please log in to like tracks");
             setShowError(true);
             return;
         }
 
-        const trackId = tracks[displayTrackIndex].id;
+        const trackId = tracks[currentTrackIndex].id;
         console.log(`Toggling like for track ${trackId}, using DB user ID: ${dbUser.id}`);
 
         try {
@@ -164,8 +159,8 @@ const MusicPlayer = () => {
 
     // Fetch like status for the current track
     useEffect(() => {
-        if (tracks.length === 0 || displayTrackIndex === null || !dbUser || !dbUser.id) return;
-        const trackId = tracks[displayTrackIndex].id;
+        if (tracks.length === 0 || currentTrackIndex === null || !dbUser || !dbUser.id) return;
+        const trackId = tracks[currentTrackIndex].id;
 
         (async () => {
             try {
@@ -190,7 +185,7 @@ const MusicPlayer = () => {
                 console.error('Error fetching like status:', e);
             }
         })();
-    }, [displayTrackIndex, tracks, dbUser?.id]);
+    }, [currentTrackIndex, tracks, dbUser?.id]);
 
     // Restore saved volume
     useEffect(() => {
@@ -221,16 +216,14 @@ const MusicPlayer = () => {
         fetch(`${import.meta.env.VITE_BACKEND_URL}/current-time`)
             .then(r => r.json())
             .then(d => {
-                const initialIndex = d.trackIndex;
-                setCurrentTrackIndex(initialIndex);
-                setDisplayTrackIndex(initialIndex); // Also set display track on initial load
+                setCurrentTrackIndex(d.trackIndex);
                 setElapsedTime(d.elapsedTime);
                 setIsPlaying(true); // Auto-play on initial load
             })
             .catch(e => console.error('Error fetching current time on mount:', e));
     }, [tracks]);
 
-    // Setup WebSocket connection once (not on every track change)
+    // Setup WebSocket connection
     useEffect(() => {
         const setupWebsocket = () => {
             const apiBase = import.meta.env.VITE_BACKEND_URL.replace(/\/$/, "");
@@ -246,14 +239,17 @@ const MusicPlayer = () => {
                 try {
                     const data = JSON.parse(ev.data);
                     if (data.type === 'currentTrack') {
+                        // If track changed, show loading indicator
                         if (data.trackIndex !== currentTrackIndex) {
-                            if (isInitialLoad) setIsAudioLoading(true);
-                            setNextTrackIndex(data.trackIndex);
-                            setCurrentTrackIndex(data.trackIndex);
-                            setElapsedTime(data.elapsedTime);
-                            if (!isManuallyPausedRef.current) setIsPlaying(true);
-                        } else if (!isManuallyPausedRef.current) {
-                            setElapsedTime(data.elapsedTime);
+                            setIsAudioLoading(true);
+                        }
+
+                        // Update track info from server
+                        setCurrentTrackIndex(data.trackIndex);
+                        setElapsedTime(data.elapsedTime);
+
+                        // Play if not manually paused
+                        if (!isManuallyPausedRef.current) {
                             setIsPlaying(true);
                         }
                     }
@@ -281,13 +277,6 @@ const MusicPlayer = () => {
         audio.play()
             .then(() => {
                 playRequestPending.current = false;
-                setIsInitialLoad(false); // After first successful play, no longer initial load
-
-                // If this was a pending track change and it succeeded, update display track
-                if (nextTrackIndex !== null && currentTrackIndex === nextTrackIndex) {
-                    setDisplayTrackIndex(nextTrackIndex);
-                    setNextTrackIndex(null);
-                }
             })
             .catch(e => {
                 playRequestPending.current = false;
@@ -330,7 +319,6 @@ const MusicPlayer = () => {
                 const d = await res.json();
 
                 setCurrentTrackIndex(d.trackIndex);
-                setDisplayTrackIndex(d.trackIndex); // Also update display track
                 setElapsedTime(d.elapsedTime);
 
                 const audio = audioRef.current?.audio.current;
@@ -356,41 +344,12 @@ const MusicPlayer = () => {
         localStorage.setItem('player-volume', newVolume.toString());
     };
 
-    // Move to next track
-    const handleNextTrack = () => {
-        if (tracks.length === 0 || displayTrackIndex === null) return;
-
-        // Don't show loading indicator when switching tracks if already playing
-        if (isInitialLoad) {
-            setIsAudioLoading(true);
-        }
-
-        const nextIndex = (displayTrackIndex + 1) % tracks.length;
-        setNextTrackIndex(nextIndex); // Queue the next track
-        setCurrentTrackIndex(nextIndex); // Update for audio loading
-        setElapsedTime(0);
-        setIsManuallyPaused(false);
-        isManuallyPausedRef.current = false;
-        pendingTrackChange.current = true;
-    };
-
-    // Handle when audio is ready to play
+    // Handle audio ready to play
     const handleCanPlayThrough = () => {
         setIsAudioLoading(false);
 
-        // If audio is ready to play, update the display track if we have a pending change
-        if (nextTrackIndex !== null && currentTrackIndex === nextTrackIndex) {
-            if (isPlaying && !isManuallyPausedRef.current) {
-                // If playing, try playing first, display will update on successful play
-                if (audioRef.current?.audio.current) {
-                    safePlayAudio(audioRef.current.audio.current);
-                }
-            } else {
-                // If not playing, update display immediately
-                setDisplayTrackIndex(nextTrackIndex);
-                setNextTrackIndex(null);
-            }
-        } else if (isPlaying && !isManuallyPausedRef.current && audioRef.current?.audio.current) {
+        // If ready to play and should be playing, play it
+        if (isPlaying && !isManuallyPausedRef.current && audioRef.current?.audio.current) {
             safePlayAudio(audioRef.current.audio.current);
         }
     };
@@ -414,7 +373,7 @@ const MusicPlayer = () => {
     }
 
     // Render if no tracks or index invalid
-    if (displayTrackIndex === null || tracks.length === 0) {
+    if (currentTrackIndex === null || tracks.length === 0) {
         return (
             <Box sx={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                 <Typography>No track available</Typography>
@@ -422,14 +381,11 @@ const MusicPlayer = () => {
         );
     }
 
-    // Use displayTrackIndex for UI, currentTrackIndex for audio source
-    const displayTrack = tracks[displayTrackIndex];
-    const audioSrc = currentTrackIndex !== null ?
-        `${import.meta.env.VITE_BACKEND_URL}/api/tracks/stream/${tracks[currentTrackIndex].path}` :
-        '';
+    const currentTrack = tracks[currentTrackIndex];
+    const audioSrc = `${import.meta.env.VITE_BACKEND_URL}/api/tracks/stream/${currentTrack.path}`;
 
-    const artistImage = displayTrack.Artist?.image
-        ? `${import.meta.env.VITE_MINIO_URL}/images/${displayTrack.Artist.image}`
+    const artistImage = currentTrack.Artist?.image
+        ? `${import.meta.env.VITE_MINIO_URL}/images/${currentTrack.Artist.image}`
         : `${import.meta.env.VITE_MINIO_URL}/images/defaultAlbumArt.jpg`;
 
     return (
@@ -447,7 +403,7 @@ const MusicPlayer = () => {
                     <img
                         ref={imgRef}
                         src={artistImage}
-                        alt={displayTrack.Artist?.name || 'Unknown Artist'}
+                        alt={currentTrack.Artist?.name || 'Unknown Artist'}
                         className="mx-auto h-48 w-48 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-full shadow-xl animate-slow-spin cursor-pointer"
                         style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
                         onClick={toggleHeaderVisibility}
@@ -455,10 +411,10 @@ const MusicPlayer = () => {
                 </Box>
 
                 <Typography variant="h5" fontWeight="bold">
-                    {displayTrack.Artist?.name || 'Unknown Artist'}
+                    {currentTrack.Artist?.name || 'Unknown Artist'}
                 </Typography>
                 <Typography variant="subtitle1" color="textSecondary" mb={4}>
-                    {displayTrack.name}
+                    {currentTrack.name}
                 </Typography>
 
                 <AudioPlayer
@@ -477,14 +433,7 @@ const MusicPlayer = () => {
                     autoPlayAfterSrcChange={true}
                     autoPlay={!isManuallyPaused}
                     listenInterval={1000}
-                    onEnded={handleNextTrack}
-                    onError={() => handleNextTrack()}
-                    onLoadStart={() => {
-                        // Only show loading indicator on initial load, not on track switch
-                        if (isInitialLoad) {
-                            setIsAudioLoading(true);
-                        }
-                    }}
+                    onLoadStart={() => setIsAudioLoading(true)}
                     onLoadedMetaData={() => {
                         if (audioRef.current?.audio.current && elapsedTime !== null && !isManuallyPaused) {
                             audioRef.current.audio.current.currentTime = elapsedTime;
@@ -503,8 +452,7 @@ const MusicPlayer = () => {
                     ]}
                     customProgressBarSection={[]}
                 />
-                {/* Only show loading indicator on initial load */}
-                {isAudioLoading && isInitialLoad && (
+                {isAudioLoading && (
                     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
                         <CircularProgress size={24} />
                     </Box>
