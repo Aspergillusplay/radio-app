@@ -1,0 +1,55 @@
+@startuml radio_system_sequence_diagram
+
+!theme plain
+skinparam backgroundColor white
+skinparam sequenceArrowThickness 2
+skinparam participantBorderThickness 1
+skinparam noteBorderThickness 1
+skinparam BoxPadding 10
+skinparam sequenceGroupBorderThickness 2
+skinparam sequenceGroupBodyBackgroundColor #FAFAFA
+
+title Zaradenie skladby do fronty - Sekvenčný diagram
+
+actor Poslucháč as user
+participant "Klientský prehliadač" as browser
+participant "API Server" as api
+participant "Autentifikačná služba" as auth
+database "Databáza" as db
+
+note over browser, db
+  <b>NFR1:</b> API odozva pod 100 ms (95% požiadaviek)
+  <b>NFR5:</b> Interakčné prvky reagujú < 40 ms
+end note
+
+user -> browser ++: Kliknutie na tlačidlo "Zaradiť skladbu"
+browser -> browser: Reakcia UI na kliknutie (<40ms)
+
+browser -> api ++: POST /api/tracks/queue-next/{id}\nauthToken, trackId
+api -> auth ++: Overenie JWT tokenu
+auth --> api --: Užívateľ overený
+
+group Validácia a spracovanie
+  api -> db ++: Získanie aktuálnej skladby
+  db --> api --: Aktuálna skladba
+
+  api -> db ++: Získanie vybranej skladby
+  db --> api --: Vybraná skladba
+
+  api -> api: Výpočet nového poradia
+
+  api -> db ++: Aktualizácia poradia skladieb
+  db --> api --: Potvrdenie aktualizácie
+end group
+
+api --> browser --: 200 OK (odpoveď < 100ms)
+browser --> user: Zobrazenie úspechu
+
+note right of api
+  Merané metriky:
+  - Celková latencia API: <100ms
+  - Validácia: <20ms
+  - DB operácie: <50ms
+end note
+
+@enduml

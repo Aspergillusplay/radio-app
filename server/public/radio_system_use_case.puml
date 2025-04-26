@@ -1,0 +1,144 @@
+@startuml radio_system_detailed
+
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam usecaseBackgroundColor #F8F9FA
+skinparam usecaseBorderColor #DEE2E6
+skinparam actorBorderColor #212529
+skinparam actorBackgroundColor #F8F9FA
+skinparam arrowColor #495057
+skinparam noteBorderColor #6C757D
+skinparam noteBackgroundColor #E9ECEF
+left to right direction
+
+' Actors
+actor "Poslucháč" as Listener
+actor "Administrátor" as Admin
+Admin -|> Listener : rozširuje
+
+package "Rádiový Systém" {
+  ' Main use cases based on requirements
+  package "FR1: Živé streamovanie" {
+    usecase "Počúvať živý stream" as ListenLiveStream
+    usecase "Zobraziť informácie o skladbe" as ViewTrackInfo
+    usecase "Prepnúť sieť bez prerušenia" as SwitchNetwork
+    usecase "Synchronizácia cez WebSocket" as WebSocketSync
+  }
+
+  package "FR2: Užívateľský účet" {
+    usecase "Registrácia" as Register
+    usecase "Prihlásenie" as Login
+    usecase "Spravovať profil" as ManageProfile
+    usecase "Zmeniť heslo" as ChangePassword
+    usecase "Zmazať účet" as DeleteAccount
+    usecase "Nahrať profilovú fotku" as UploadProfilePic
+  }
+
+  package "FR3: Želania" {
+    usecase "Odoslať želanie" as SendWish
+    usecase "Zadať text želania" as EnterWishText
+  }
+
+  package "FR4: Hodnotenie" {
+    usecase "Hodnotiť skladbu" as RateTrack
+    usecase "Sledovať hodnotenia" as ViewRatings
+    usecase "Označiť skladbu ako obľúbenú" as LikeTrack
+  }
+
+  package "FR5: História želaní" {
+    usecase "Zobraziť vlastné želania" as ViewOwnWishes
+    usecase "Zobraziť všetky želania" as ViewAllWishes
+  }
+
+  package "FR6: Fronta prehrávania" {
+    usecase "Pridať skladbu do fronty" as QueueTrack
+    usecase "Zobraziť frontu" as ViewQueue
+  }
+
+  package "FR7: Administrácia" {
+    usecase "Spravovať frontu" as ManageQueue
+    usecase "Preusporiadať skladby podľa hodnotení" as ReorderTracks
+    usecase "Schváliť/zamietnuť želania" as ModerateWishes
+    usecase "Spravovať umelcov" as ManageArtists
+    usecase "Nahrať skladby" as UploadTracks
+  }
+}
+
+' FR1 relationships
+Listener --> ListenLiveStream
+ListenLiveStream ..> WebSocketSync : <<include>>
+Listener --> ViewTrackInfo
+ListenLiveStream ..> SwitchNetwork : <<include>>
+
+' FR2 relationships
+Listener --> Register
+Listener --> Login
+Listener --> ManageProfile
+ManageProfile ..> ChangePassword : <<include>>
+ManageProfile ..> DeleteAccount : <<include>>
+ManageProfile ..> UploadProfilePic : <<include>>
+
+' FR3 relationships
+Listener --> SendWish
+SendWish ..> Login : <<include>>
+SendWish ..> EnterWishText : <<include>>
+
+' FR4 relationships
+Listener --> RateTrack
+Listener --> LikeTrack
+LikeTrack ..> Login : <<include>>
+RateTrack ..> Login : <<include>>
+Listener --> ViewRatings
+
+' FR5 relationships
+Listener --> ViewOwnWishes
+ViewOwnWishes ..> Login : <<include>>
+Admin --> ViewAllWishes
+
+' FR6 relationships
+Listener --> QueueTrack
+QueueTrack ..> Login : <<include>>
+Listener --> ViewQueue
+
+' FR7 relationships
+Admin --> ManageQueue
+Admin --> ModerateWishes
+Admin --> ManageArtists
+Admin --> UploadTracks
+Admin --> ReorderTracks
+
+' Add notes for important requirements
+note right of ListenLiveStream
+  Buffer ≤ 1,5 s
+  Bez prerušenia pri prepnutí siete
+end note
+
+note right of SendWish
+  Prianie uložené v DB
+  Potvrdenie < 200 ms
+end note
+
+note right of RateTrack
+  Hodnotenie 1-5 hviezdičiek
+  Zobrazenie < 150 ms
+end note
+
+note right of QueueTrack
+  Nová skladba sa objaví
+  na vrchu fronty < 200 ms
+end note
+
+note bottom of ReorderTracks
+  Algoritmus preusporiadania:
+  - Skupina A (top 30% obľúbených)
+  - Skupina B (ďalších 30%)
+  - Skupina C (zostávajúce)
+  - Duplikáty pre A a B skupiny
+end note
+
+note right of WebSocketSync
+  Aktuálna skladba a čas
+  synchronizované v reálnom čase
+end note
+
+@enduml
