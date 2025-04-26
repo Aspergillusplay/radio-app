@@ -50,9 +50,12 @@ const MusicPlayer = () => {
     const playRequestPending = useRef(false);
     const wsRef = useRef<WebSocket | null>(null);
 
+    // Track preloading state
+    const preloadedTracks = useRef<Map<number, HTMLAudioElement>>(new Map());
+    const currentPreloadingIndex = useRef<number | null>(null);
+
     const imgRef = useRef<HTMLImageElement>(null);
     const audioRef = useRef<AudioPlayer>(null);
-    const preloadAudioRef = useRef<HTMLAudioElement | null>(null);
 
     // Keep the manual pause flag in ref for callbacks
     useEffect(() => {
@@ -71,37 +74,68 @@ const MusicPlayer = () => {
         setShowError(false);
     };
 
-    // Create preload audio element
-    useEffect(() => {
-        const preloadAudio = new Audio();
-        preloadAudio.preload = "auto";
-        preloadAudio.volume = 0;
-        preloadAudioRef.current = preloadAudio;
+    // Advanced preloading system that maintains a map of preloaded tracks
+    const preloadTrack = (trackIndex: number) => {
+        if (!tracks.length || trackIndex < 0 || trackIndex >= tracks.length) return;
 
-        return () => {
-            if (preloadAudioRef.current) {
-                preloadAudioRef.current.pause();
-                preloadAudioRef.current.src = '';
-            }
-        };
-    }, []);
+        // Don't preload if already preloading this track
+        if (currentPreloadingIndex.current === trackIndex) return;
 
-    // Preload next track
-    const preloadNextTrack = () => {
-        if (!tracks.length || currentTrackIndex === null || !preloadAudioRef.current) return;
+        // Don't preload if already preloaded
+        if (preloadedTracks.current.has(trackIndex)) return;
 
-        // Calculate next track index
-        const nextIndex = (currentTrackIndex + 1) % tracks.length;
-        const nextTrack = tracks[nextIndex];
+        const track = tracks[trackIndex];
+        console.log(`Starting preload for track: ${track.name} (index: ${trackIndex})`);
 
-        if (!nextTrack) return;
+        currentPreloadingIndex.current = trackIndex;
 
-        const nextAudioSrc = `${import.meta.env.VITE_BACKEND_URL}/api/tracks/stream/${nextTrack.path}`;
+        const audio = new Audio();
+        audio.preload = "auto";
+        audio.volume = 0;
 
-        console.log(`Preloading next track: ${nextTrack.name}`);
-        preloadAudioRef.current.src = nextAudioSrc;
-        preloadAudioRef.current.load(); // Start loading the audio file
+        // Track loading events
+        audio.addEventListener('canplaythrough', () => {
+            console.log(`Track preloaded successfully: ${track.name} (index: ${trackIndex})`);
+            preloadedTracks.current.set(trackIndex, audio);
+            currentPreloadingIndex.current = null;
+
+            // Start preloading the next track in sequence
+            preloadTrack((trackIndex + 1) % tracks.length);
+        });
+
+        audio.addEventListener('error', (e) => {
+            console.error(`Error preloading track ${track.name}:`, e);
+            currentPreloadingIndex.current = null;
+        });
+
+        const audioSrc = `${import.meta.env.VITE_BACKEND_URL}/api/tracks/stream/${track.path}`;
+        audio.src = audioSrc;
+        audio.load();
     };
+
+    // Initialize preloading when track list is available
+    useEffect(() => {
+        if (!tracks.length || currentTrackIndex === null) return;
+
+        // Preload next track
+        const nextIndex = (currentTrackIndex + 1) % tracks.length;
+        preloadTrack(nextIndex);
+
+        // Also preload the track after next for even smoother experience
+        const nextNextIndex = (currentTrackIndex + 2) % tracks.length;
+        setTimeout(() => {
+            preloadTrack(nextNextIndex);
+        }, 1000);
+
+        // Cleanup function
+        return () => {
+            preloadedTracks.current.forEach((audio) => {
+                audio.pause();
+                audio.src = '';
+            });
+            preloadedTracks.current.clear();
+        };
+    }, [currentTrackIndex, tracks]);
 
     // Set up authentication listener
     useEffect(() => {
@@ -272,9 +306,16 @@ const MusicPlayer = () => {
                 try {
                     const data = JSON.parse(ev.data);
                     if (data.type === 'currentTrack') {
-                        // If track changed, show loading indicator
+                        // If track changed
                         if (data.trackIndex !== currentTrackIndex) {
-                            setIsAudioLoading(true);
+                            // Check if we have this track preloaded
+                            const hasPreloaded = preloadedTracks.current.has(data.trackIndex);
+                            console.log(`Track change detected. Preloaded: ${hasPreloaded ? "Yes" : "No"}`);
+
+                            // Show loading only if not preloaded
+                            if (!hasPreloaded) {
+                                setIsAudioLoading(true);
+                            }
                         }
 
                         // Update track info from server
@@ -284,6 +325,12 @@ const MusicPlayer = () => {
                         // Play if not manually paused
                         if (!isManuallyPausedRef.current) {
                             setIsPlaying(true);
+                        }
+
+                        // Start preloading next tracks immediately
+                        if (tracks.length > 0) {
+                            const nextIndex = (data.trackIndex + 1) % tracks.length;
+                            preloadTrack(nextIndex);
                         }
                     }
                 } catch (err) {
@@ -322,22 +369,60 @@ const MusicPlayer = () => {
             });
     };
 
-    // Sync audio playback position
+    // Sync audio playback position with optimized preloading
     useEffect(() => {
-        if (
-            currentTrackIndex === null ||
-            elapsedTime === null ||
-            !audioRef.current?.audio.current
-        ) return;
+        if (currentTrackIndex === null || elapsedTime === null) return;
 
-        const audio = audioRef.current.audio.current;
-        if (!isManuallyPaused) {
-            audio.currentTime = elapsedTime;
-            if (isPlaying) {
-                safePlayAudio(audio);
+        // Check if we have the track preloaded
+        if (preloadedTracks.current.has(currentTrackIndex)) {
+            console.log(`Using preloaded track at index ${currentTrackIndex}`);
+
+            // Get preloaded audio
+            const preloadedAudio = preloadedTracks.current.get(currentTrackIndex)!;
+
+            // If we have an audio player reference, update its src from preloaded audio
+            if (audioRef.current?.audio.current) {
+                const currentAudio = audioRef.current.audio.current;
+
+                // Only set src if it's different (avoid unnecessary reloading)
+                if (currentAudio.src !== preloadedAudio.src) {
+                    currentAudio.src = preloadedAudio.src;
+                }
+
+                // Set the current time and play state
+                currentAudio.currentTime = elapsedTime;
+                if (isPlaying && !isManuallyPausedRef.current) {
+                    setIsAudioLoading(false); // Immediately mark as not loading since we've preloaded
+                    safePlayAudio(currentAudio);
+                }
+            }
+
+            // Remove the used preloaded track
+            preloadedTracks.current.delete(currentTrackIndex);
+        } else if (audioRef.current?.audio.current) {
+            // No preloaded track, fallback to normal loading
+            const audio = audioRef.current.audio.current;
+
+            if (!isManuallyPaused) {
+                audio.currentTime = elapsedTime;
+                if (isPlaying) {
+                    safePlayAudio(audio);
+                }
             }
         }
-    }, [currentTrackIndex, elapsedTime, isPlaying, isManuallyPaused]);
+
+        // Start preloading the next tracks immediately
+        if (tracks.length > 0) {
+            const nextIndex = (currentTrackIndex + 1) % tracks.length;
+            preloadTrack(nextIndex);
+
+            // Preload the track after next for even smoother experience
+            setTimeout(() => {
+                const nextNextIndex = (currentTrackIndex + 2) % tracks.length;
+                preloadTrack(nextNextIndex);
+            }, 500);
+        }
+    }, [currentTrackIndex, elapsedTime, isPlaying, isManuallyPaused, tracks.length]);
 
     // Handle play/pause actions
     const handlePlayPause = async (play: boolean) => {
@@ -385,9 +470,6 @@ const MusicPlayer = () => {
         if (isPlaying && !isManuallyPausedRef.current && audioRef.current?.audio.current) {
             safePlayAudio(audioRef.current.audio.current);
         }
-
-        // Preload next track once current track is ready
-        preloadNextTrack();
     };
 
     // Render loading state
