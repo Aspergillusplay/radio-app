@@ -7,14 +7,27 @@ import tracksRoutes from './routes/tracks.js';
 import usersRoutes from './routes/users.js';
 import artistsRoutes from './routes/artists.js';
 import wishesRoutes from './routes/wishes.js';
-import Track from './models/track.js'; // Track model from the database (ensure it has the "isDuplicate" field)
+import Track from './models/track.js';
 import minioClient from './clients/minioClient.js';
-import { parseStream } from 'music-metadata'; // For audio metadata
+import { parseStream } from 'music-metadata';
 
 const app = express();
 const port = 3010;
-// Store loaded tracks in memory for faster access
+
+// Track cache: stores loaded tracks for faster access
 let loadedTracks = [];
+
+// Cache for preloaded track metadata
+const preloadedTracksCache = new Map();
+
+// Track playback state
+let currentTrackIndex = 0;
+let currentTrackStartTime = Date.now();
+let trackSwitchTimeout = null;
+let wssInstance = null;
+
+// Preload status tracking (to avoid duplicate preloads)
+const preloadingStatus = new Map();
 
 app.use(cors({
     origin: '*',
@@ -41,8 +54,19 @@ const startDatabase = async () => {
 
 startDatabase();
 
-// Compute track duration using metadata from MinIO
+/**
+ * Computes track duration by analyzing audio metadata from MinIO
+ * @param {Object} track - Track object with path property
+ * @returns {Promise<number|null>} - Duration in seconds or null if error
+ */
 async function computeTrackDuration(track) {
+    // Check if we already have this track's metadata cached
+    const cacheKey = `duration:${track.path}`;
+    if (preloadedTracksCache.has(cacheKey)) {
+        console.log(`Using cached duration for ${track.name}: ${preloadedTracksCache.get(cacheKey)} sec`);
+        return preloadedTracksCache.get(cacheKey);
+    }
+
     return new Promise((resolve) => {
         const bucket = 'audio';
         minioClient.getObject(bucket, track.path, async (err, stream) => {
@@ -52,8 +76,16 @@ async function computeTrackDuration(track) {
                 return;
             }
             try {
+                console.log(`Parsing metadata for track: ${track.name}`);
                 const metadata = await parseStream(stream, null, { duration: true });
-                resolve(metadata.format.duration);
+                const duration = metadata.format.duration;
+
+                // Cache the result for future use
+                if (duration) {
+                    preloadedTracksCache.set(cacheKey, duration);
+                }
+
+                resolve(duration);
             } catch (parseErr) {
                 console.error(`Error parsing metadata for track ${track.name}:`, parseErr);
                 resolve(null);
@@ -62,8 +94,92 @@ async function computeTrackDuration(track) {
     });
 }
 
-// Load tracks from the database and compute duration if not set
-// Also stores tracks in memory for faster access
+/**
+ * Preloads track metadata for faster future access
+ * @param {number} trackIndex - Index of track to preload
+ * @param {number} count - Number of tracks to preload (default: 2)
+ */
+async function preloadTrackMetadata(trackIndex, count = 2) {
+    if (!loadedTracks.length) return;
+
+    // Create an array of track indices to preload
+    const indicesToPreload = [];
+    for (let i = 0; i < count; i++) {
+        const index = (trackIndex + i) % loadedTracks.length;
+        indicesToPreload.push(index);
+    }
+
+    // Start preloading all tracks in parallel
+    await Promise.all(indicesToPreload.map(async (index) => {
+        const track = loadedTracks[index];
+        if (!track) return;
+
+        // Skip if already preloading or preloaded
+        const preloadKey = `preload:${track.id}`;
+        if (preloadingStatus.get(preloadKey) === 'loading' ||
+            preloadingStatus.get(preloadKey) === 'loaded') {
+            return;
+        }
+
+        // Mark as loading
+        preloadingStatus.set(preloadKey, 'loading');
+
+        // Preload duration if not available
+        if (!track.duration) {
+            console.log(`Preloading metadata for track: ${track.name} (index: ${index})`);
+            try {
+                const duration = await computeTrackDuration(track);
+                if (duration) {
+                    // Update in memory
+                    track.duration = Math.floor(duration);
+
+                    // Update in database if needed
+                    const dbTrack = await Track.findByPk(track.id);
+                    if (dbTrack && !dbTrack.duration) {
+                        dbTrack.duration = track.duration;
+                        await dbTrack.save();
+                        console.log(`Updated duration for track ${track.name}: ${track.duration}s`);
+                    }
+                }
+            } catch (error) {
+                console.error(`Error preloading metadata for ${track.name}:`, error);
+            }
+        }
+
+        // Mark as loaded
+        preloadingStatus.set(preloadKey, 'loaded');
+
+        // Notify clients that this track is preloaded
+        broadcastTrackPreloaded(index);
+    }));
+}
+
+/**
+ * Broadcasts to all clients that a specific track has been preloaded
+ * @param {number} trackIndex - Index of preloaded track
+ */
+function broadcastTrackPreloaded(trackIndex) {
+    if (!wssInstance) return;
+
+    const track = loadedTracks[trackIndex];
+    if (!track) return;
+
+    wssInstance.clients.forEach((client) => {
+        if (client.readyState === client.OPEN) {
+            client.send(JSON.stringify({
+                type: 'trackPreloaded',
+                trackIndex: trackIndex,
+                trackId: track.id,
+                trackDuration: track.duration || null
+            }));
+        }
+    });
+}
+
+/**
+ * Loads tracks from database and computes durations if needed
+ * @returns {Promise<Array>} - Array of track objects
+ */
 async function loadTracks() {
     const tracksFromDB = await Track.findAll({ order: [['order', 'ASC']] });
     const newTracks = tracksFromDB.map(track => track.get({ plain: true }));
@@ -87,6 +203,12 @@ async function loadTracks() {
 
     // Save tracks in memory for quick access
     loadedTracks = newTracks;
+
+    // Start preloading the next tracks
+    if (newTracks.length > 0 && currentTrackIndex !== null) {
+        preloadTrackMetadata(currentTrackIndex, 3);
+    }
+
     return newTracks;
 }
 
@@ -269,6 +391,9 @@ export async function reorderTracksByLikes() {
         }
         console.log("Tracks reordered by likes and groups successfully.");
 
+        // Clear preloading status after reordering
+        preloadingStatus.clear();
+
         // Reload tracks after reordering
         await loadTracks();
     } catch (error) {
@@ -277,62 +402,9 @@ export async function reorderTracksByLikes() {
     }
 }
 
-// Global variables to track the current playback state
-let currentTrackIndex = 0;
-let currentTrackStartTime = Date.now();
-let trackSwitchTimeout = null;
-let wssInstance = null;
-
-// Function to advance to the next track when current track ends
-function scheduleNextTrack() {
-    if (trackSwitchTimeout) {
-        clearTimeout(trackSwitchTimeout);
-    }
-
-    // Get current track and its duration
-    if (!loadedTracks || loadedTracks.length === 0 || currentTrackIndex >= loadedTracks.length) {
-        console.warn("Cannot schedule next track: track list is empty or index out of bounds");
-        return;
-    }
-
-    const currentTrack = loadedTracks[currentTrackIndex];
-    if (!currentTrack) {
-        console.error(`No track found at index ${currentTrackIndex}`);
-        return;
-    }
-
-    // Get track duration (with a 3-second buffer to ensure complete playback)
-    const trackDuration = (currentTrack.duration || 200) + 3;
-    const currentElapsedTime = (Date.now() - currentTrackStartTime) / 1000;
-
-    // Calculate remaining time before next track
-    let remainingTime = trackDuration - currentElapsedTime;
-    if (remainingTime <= 0) {
-        // If we've already passed the track duration, switch immediately
-        console.log(`Track ${currentTrack.name} has already finished, switching immediately`);
-        playNextTrack();
-        return;
-    }
-
-    console.log(`Scheduling next track in ${remainingTime.toFixed(2)} seconds`);
-    trackSwitchTimeout = setTimeout(playNextTrack, remainingTime * 1000);
-}
-
-// Function to play the next track in sequence
-async function playNextTrack() {
-    let nextTrackIndex = currentTrackIndex + 1;
-
-    // If we've reached the end of the playlist, either loop or reorder
-    if (nextTrackIndex >= loadedTracks.length) {
-        console.log("End of playlist reached, reordering tracks");
-        await reorderTracksByLikes();
-        nextTrackIndex = 0;
-    }
-
-    startTrack(nextTrackIndex);
-}
-
-// Function to broadcast current track info to all connected clients
+/**
+ * Broadcasts current track info to all connected clients
+ */
 function broadcastCurrentTrack() {
     if (!wssInstance) return;
 
@@ -361,13 +433,72 @@ function broadcastCurrentTrack() {
             client.send(JSON.stringify({
                 type: 'currentTrack',
                 trackIndex: currentTrackIndex,
-                elapsedTime: elapsedTime
+                elapsedTime: elapsedTime,
+                trackDuration: currentTrack.duration || null,
+                trackId: currentTrack.id
             }));
         }
     });
 }
 
-// Function to start playing a track by its index
+/**
+ * Schedules the next track to play when current track ends
+ */
+function scheduleNextTrack() {
+    if (trackSwitchTimeout) {
+        clearTimeout(trackSwitchTimeout);
+    }
+
+    // Get current track and its duration
+    if (!loadedTracks || loadedTracks.length === 0 || currentTrackIndex >= loadedTracks.length) {
+        console.warn("Cannot schedule next track: track list is empty or index out of bounds");
+        return;
+    }
+
+    const currentTrack = loadedTracks[currentTrackIndex];
+    if (!currentTrack) {
+        console.error(`No track found at index ${currentTrackIndex}`);
+        return;
+    }
+
+    // Get track duration (with a small buffer to ensure complete playback)
+    const trackDuration = (currentTrack.duration || 200) + 1;
+    const currentElapsedTime = (Date.now() - currentTrackStartTime) / 1000;
+
+    // Calculate remaining time before next track
+    let remainingTime = trackDuration - currentElapsedTime;
+    if (remainingTime <= 0) {
+        // If we've already passed the track duration, switch immediately
+        console.log(`Track ${currentTrack.name} has already finished, switching immediately`);
+        playNextTrack();
+        return;
+    }
+
+    console.log(`Scheduling next track in ${remainingTime.toFixed(2)} seconds`);
+    trackSwitchTimeout = setTimeout(playNextTrack, remainingTime * 1000);
+}
+
+/**
+ * Plays the next track in sequence
+ */
+async function playNextTrack() {
+    let nextTrackIndex = currentTrackIndex + 1;
+
+    // If we've reached the end of the playlist, either loop or reorder
+    if (nextTrackIndex >= loadedTracks.length) {
+        console.log("End of playlist reached, reordering tracks");
+        await reorderTracksByLikes();
+        nextTrackIndex = 0;
+    }
+
+    // Start the next track
+    startTrack(nextTrackIndex);
+}
+
+/**
+ * Starts playing a track by its index
+ * @param {number} index - Index of track to start playing
+ */
 async function startTrack(index) {
     // Ensure tracks are loaded
     if (loadedTracks.length === 0) {
@@ -389,6 +520,9 @@ async function startTrack(index) {
     // Broadcast to all clients
     broadcastCurrentTrack();
 
+    // Preload upcoming tracks
+    preloadTrackMetadata(index + 1, 3);
+
     // Schedule the next track
     scheduleNextTrack();
 }
@@ -396,7 +530,7 @@ async function startTrack(index) {
 // Create HTTP server
 const httpServer = http.createServer(app);
 
-// Initialize WebSocket server
+// Initialize WebSocket server with extended interface
 wssInstance = setupWebSocket(httpServer, {
     getCurrentTrackIndex: () => currentTrackIndex,
     getCurrentTrackStartTime: () => currentTrackStartTime,
@@ -413,7 +547,7 @@ httpServer.listen(port, async () => {
     // Start playing from the first track
     startTrack(0);
 
-    // Set up periodic broadcast to keep clients in sync
+    // Set up periodic broadcast to keep clients in sync (every 10 seconds)
     setInterval(broadcastCurrentTrack, 10000);
 });
 
@@ -437,8 +571,22 @@ app.get('/current-time', (req, res) => {
         trackIndex: currentTrackIndex,
         elapsedTime,
         trackDuration: currentTrack.duration || null,
-        trackName: currentTrack.name
+        trackName: currentTrack.name,
+        trackId: currentTrack.id
     });
+});
+
+// REST API endpoint to get information about preloaded tracks
+app.get('/tracks/preloaded-status', (req, res) => {
+    const preloadInfo = Array.from(preloadingStatus.entries()).reduce((acc, [key, value]) => {
+        if (key.startsWith('preload:')) {
+            const trackId = key.split(':')[1];
+            acc[trackId] = value;
+        }
+        return acc;
+    }, {});
+
+    res.json(preloadInfo);
 });
 
 // Graceful shutdown

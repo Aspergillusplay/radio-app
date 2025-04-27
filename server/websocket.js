@@ -5,46 +5,115 @@ export default function setupWebSocket(server, { getCurrentTrackIndex, getCurren
     const wss = new WebSocketServer({ server });
 
     wss.on('connection', (ws) => {
-        // При подключении сразу отдаем клиенту актуальную информацию
+        console.log('New WebSocket connection established');
+
+        // Send current track info immediately upon connection
         sendCurrentTrackInfo(ws);
 
+        // Handle messages from clients
         ws.on('message', (message) => {
             let data;
             try {
                 data = JSON.parse(message);
             } catch (e) {
-                console.error('Неверный JSON:', message);
+                console.error('Invalid JSON received:', message);
                 return;
             }
-            if (data.type === 'getCurrentTrack') {
-                sendCurrentTrackInfo(ws);
+
+            // Handle client messages
+            switch (data.type) {
+                case 'getCurrentTrack':
+                    sendCurrentTrackInfo(ws);
+                    break;
+
+                case 'trackPreloaded':
+                    // Client reporting it has preloaded a track
+                    console.log(`Client reports track at index ${data.trackIndex} is preloaded`);
+                    break;
+
+                case 'requestTrackDuration':
+                    // Client requesting track duration
+                    sendTrackDuration(ws, data.trackIndex);
+                    break;
             }
+        });
+
+        // Handle connection close
+        ws.on('close', () => {
+            console.log('WebSocket connection closed');
         });
     });
 
+    // Function to send track duration to client
+    function sendTrackDuration(ws, trackIndex) {
+        const tracks = getTracks();
+        if (!tracks || !tracks[trackIndex]) return;
+
+        const track = tracks[trackIndex];
+        ws.send(JSON.stringify({
+            type: 'trackDuration',
+            trackIndex: trackIndex,
+            trackId: track.id,
+            duration: track.duration || null
+        }));
+    }
+
+    // Function to send current track info to a client
     function sendCurrentTrackInfo(ws) {
         const trackIndex = getCurrentTrackIndex();
-        let elapsedTime = (Date.now() - getCurrentTrackStartTime()) / 1000;
-
-        // Получаем список треков и длительность текущего трека
         const tracks = getTracks();
 
-        // Проверяем, что трек существует и имеет длительность
-        if (tracks && tracks.length > trackIndex && tracks[trackIndex] && tracks[trackIndex].duration) {
-            const trackDuration = tracks[trackIndex].duration;
+        // Calculate elapsed time
+        let elapsedTime = (Date.now() - getCurrentTrackStartTime()) / 1000;
 
-            // Если elapsedTime превышает длительность трека, ограничиваем его
-            if (elapsedTime > trackDuration) {
-                elapsedTime = trackDuration - 0.1; // Оставляем немного времени до конца трека
-                console.log(`Время воспроизведения (${elapsedTime.toFixed(2)}s) превысило длительность трека (${trackDuration}s), установлено в конец трека`);
+        // Check if current track exists and has duration
+        if (tracks && tracks.length > trackIndex && tracks[trackIndex]) {
+            const currentTrack = tracks[trackIndex];
+            const trackDuration = currentTrack.duration;
+
+            // Ensure elapsed time doesn't exceed track duration
+            if (trackDuration && elapsedTime > trackDuration) {
+                console.log(`Elapsed time (${elapsedTime.toFixed(2)}s) exceeds track duration (${trackDuration}s), capping at track duration`);
+                elapsedTime = trackDuration;
+            }
+
+            // Send detailed track info
+            ws.send(JSON.stringify({
+                type: 'currentTrack',
+                trackIndex: trackIndex,
+                elapsedTime: elapsedTime,
+                trackName: currentTrack.name,
+                trackDuration: trackDuration,
+                trackId: currentTrack.id,
+                // Include next tracks info for preloading
+                nextTracks: getNextTracksInfo(trackIndex, 3, tracks)
+            }));
+        } else {
+            // Fallback if track not found
+            ws.send(JSON.stringify({
+                type: 'currentTrack',
+                trackIndex: trackIndex,
+                elapsedTime: elapsedTime,
+                error: 'Track information incomplete'
+            }));
+        }
+    }
+
+    // Helper function to get information about upcoming tracks for preloading
+    function getNextTracksInfo(currentIndex, count, tracks) {
+        const nextTracks = [];
+        for (let i = 1; i <= count; i++) {
+            const nextIndex = (currentIndex + i) % tracks.length;
+            if (tracks[nextIndex]) {
+                nextTracks.push({
+                    index: nextIndex,
+                    id: tracks[nextIndex].id,
+                    path: tracks[nextIndex].path,
+                    duration: tracks[nextIndex].duration
+                });
             }
         }
-
-        ws.send(JSON.stringify({
-            type: 'currentTrack',
-            trackIndex: trackIndex,
-            elapsedTime: elapsedTime
-        }));
+        return nextTracks;
     }
 
     return wss;

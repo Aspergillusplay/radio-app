@@ -20,6 +20,7 @@ interface ITrack {
     Artist?: IArtist;
     likes: number;
     order?: number;
+    duration?: number;
 }
 
 interface DbUser {
@@ -28,6 +29,13 @@ interface DbUser {
     role: "USER" | "ADMIN";
     createdAt?: string;
     updatedAt?: string;
+}
+
+interface NextTrackInfo {
+    index: number;
+    id: number;
+    path: string;
+    duration?: number;
 }
 
 const MusicPlayer = () => {
@@ -50,9 +58,11 @@ const MusicPlayer = () => {
     const playRequestPending = useRef(false);
     const wsRef = useRef<WebSocket | null>(null);
 
-    // Track preloading state
+    // Track preloading state - enhanced with metadata awareness
     const preloadedTracks = useRef<Map<number, HTMLAudioElement>>(new Map());
     const currentPreloadingIndex = useRef<number | null>(null);
+    const nextTracksInfo = useRef<NextTrackInfo[]>([]);
+    const preloadingPromises = useRef<Map<number, Promise<void>>>(new Map());
 
     const imgRef = useRef<HTMLImageElement>(null);
     const audioRef = useRef<AudioPlayer>(null);
@@ -74,58 +84,101 @@ const MusicPlayer = () => {
         setShowError(false);
     };
 
-    // Advanced preloading system that maintains a map of preloaded tracks
-    const preloadTrack = (trackIndex: number) => {
+    // Enhanced preloading system with metadata
+    const preloadTrack = async (trackIndex: number): Promise<void> => {
         if (!tracks.length || trackIndex < 0 || trackIndex >= tracks.length) return;
 
         // Don't preload if already preloading this track
-        if (currentPreloadingIndex.current === trackIndex) return;
+        if (currentPreloadingIndex.current === trackIndex) {
+            return preloadingPromises.current.get(trackIndex);
+        }
 
         // Don't preload if already preloaded
-        if (preloadedTracks.current.has(trackIndex)) return;
+        if (preloadedTracks.current.has(trackIndex)) {
+            return Promise.resolve();
+        }
 
         const track = tracks[trackIndex];
         console.log(`Starting preload for track: ${track.name} (index: ${trackIndex})`);
 
         currentPreloadingIndex.current = trackIndex;
 
-        const audio = new Audio();
-        audio.preload = "auto";
-        audio.volume = 0;
+        // Create a promise for this preload operation that we can track
+        const preloadPromise = new Promise<void>((resolve, reject) => {
+            const audio = new Audio();
+            audio.preload = "auto";
+            audio.volume = 0;
 
-        // Track loading events
-        audio.addEventListener('canplaythrough', () => {
-            console.log(`Track preloaded successfully: ${track.name} (index: ${trackIndex})`);
-            preloadedTracks.current.set(trackIndex, audio);
-            currentPreloadingIndex.current = null;
+            // Track loading events
+            audio.addEventListener('canplaythrough', () => {
+                console.log(`Track preloaded successfully: ${track.name} (index: ${trackIndex})`);
+                preloadedTracks.current.set(trackIndex, audio);
+                currentPreloadingIndex.current = null;
 
-            // Start preloading the next track in sequence
-            preloadTrack((trackIndex + 1) % tracks.length);
+                // Notify server that we've preloaded this track
+                if (wsRef.current?.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                        type: 'trackPreloaded',
+                        trackIndex: trackIndex,
+                        trackId: track.id
+                    }));
+                }
+
+                preloadingPromises.current.delete(trackIndex);
+                resolve();
+            });
+
+            audio.addEventListener('error', (e) => {
+                console.error(`Error preloading track ${track.name}:`, e);
+                currentPreloadingIndex.current = null;
+                preloadingPromises.current.delete(trackIndex);
+                reject(e);
+            });
+
+            const audioSrc = `${import.meta.env.VITE_BACKEND_URL}/api/tracks/stream/${track.path}`;
+            audio.src = audioSrc;
+            audio.load();
         });
 
-        audio.addEventListener('error', (e) => {
-            console.error(`Error preloading track ${track.name}:`, e);
-            currentPreloadingIndex.current = null;
-        });
+        // Store the promise so we can check its status
+        preloadingPromises.current.set(trackIndex, preloadPromise);
 
-        const audioSrc = `${import.meta.env.VITE_BACKEND_URL}/api/tracks/stream/${track.path}`;
-        audio.src = audioSrc;
-        audio.load();
+        // Return the promise for chaining
+        return preloadPromise;
+    };
+
+    // Smart preloading logic that reads from server suggestions
+    const smartPreloadNextTracks = async () => {
+        // If no next tracks information available, use the old logic
+        if (nextTracksInfo.current.length === 0 && currentTrackIndex !== null) {
+            const nextIndex = (currentTrackIndex + 1) % tracks.length;
+            await preloadTrack(nextIndex);
+
+            setTimeout(async () => {
+                const nextNextIndex = (currentTrackIndex + 2) % tracks.length;
+                await preloadTrack(nextNextIndex);
+            }, 500);
+            return;
+        }
+
+        // Otherwise, use the server's suggestions for what to preload next
+        for (let i = 0; i < nextTracksInfo.current.length; i++) {
+            const info = nextTracksInfo.current[i];
+            // Smaller delay for more urgent tracks (next one preloads immediately)
+            const delay = i * 300;
+
+            setTimeout(async () => {
+                await preloadTrack(info.index);
+            }, delay);
+        }
     };
 
     // Initialize preloading when track list is available
     useEffect(() => {
         if (!tracks.length || currentTrackIndex === null) return;
 
-        // Preload next track
-        const nextIndex = (currentTrackIndex + 1) % tracks.length;
-        preloadTrack(nextIndex);
-
-        // Also preload the track after next for even smoother experience
-        const nextNextIndex = (currentTrackIndex + 2) % tracks.length;
-        setTimeout(() => {
-            preloadTrack(nextNextIndex);
-        }, 1000);
+        // Use smart preloading logic
+        smartPreloadNextTracks();
 
         // Cleanup function
         return () => {
@@ -134,6 +187,7 @@ const MusicPlayer = () => {
                 audio.src = '';
             });
             preloadedTracks.current.clear();
+            preloadingPromises.current.clear();
         };
     }, [currentTrackIndex, tracks]);
 
@@ -260,7 +314,7 @@ const MusicPlayer = () => {
         if (saved !== null) setVolume(parseFloat(saved));
     }, []);
 
-    // Load tracks list
+    // Load tracks list with durations
     useEffect(() => {
         (async () => {
             try {
@@ -290,7 +344,7 @@ const MusicPlayer = () => {
             .catch(e => console.error('Error fetching current time on mount:', e));
     }, [tracks]);
 
-    // Setup WebSocket connection
+    // Enhanced WebSocket connection with track preloading
     useEffect(() => {
         const setupWebsocket = () => {
             const apiBase = import.meta.env.VITE_BACKEND_URL.replace(/\/$/, "");
@@ -300,12 +354,24 @@ const MusicPlayer = () => {
             wsRef.current?.close();
             const ws = new WebSocket(wsUrl);
 
-            ws.onopen = () => console.log('WebSocket connection established');
+            ws.onopen = () => {
+                console.log('WebSocket connection established');
+                // Request current track info immediately
+                ws.send(JSON.stringify({ type: 'getCurrentTrack' }));
+            };
+
             ws.onerror = e => console.error('WebSocket error:', e);
+
             ws.onmessage = ev => {
                 try {
                     const data = JSON.parse(ev.data);
+
                     if (data.type === 'currentTrack') {
+                        // Store next tracks info for preloading
+                        if (data.nextTracks) {
+                            nextTracksInfo.current = data.nextTracks;
+                        }
+
                         // If track changed
                         if (data.trackIndex !== currentTrackIndex) {
                             // Check if we have this track preloaded
@@ -327,16 +393,36 @@ const MusicPlayer = () => {
                             setIsPlaying(true);
                         }
 
-                        // Start preloading next tracks immediately
-                        if (tracks.length > 0) {
-                            const nextIndex = (data.trackIndex + 1) % tracks.length;
-                            preloadTrack(nextIndex);
+                        // Start preloading next tracks immediately based on server suggestions
+                        smartPreloadNextTracks();
+                    }
+                    else if (data.type === 'trackDuration') {
+                        // Update track duration in our tracks list
+                        if (data.trackId && data.duration) {
+                            setTracks(current =>
+                                current.map(track =>
+                                    track.id === data.trackId
+                                        ? { ...track, duration: data.duration }
+                                        : track
+                                )
+                            );
+                        }
+                    }
+                    else if (data.type === 'trackPreloaded') {
+                        // Server is telling us a track has been preloaded there
+                        console.log(`Server says track ${data.trackId} (index: ${data.trackIndex}) is preloaded`);
+
+                        // If we don't have it preloaded yet, start preloading it
+                        if (!preloadedTracks.current.has(data.trackIndex) &&
+                            currentPreloadingIndex.current !== data.trackIndex) {
+                            preloadTrack(data.trackIndex);
                         }
                     }
                 } catch (err) {
                     console.error('Error handling WebSocket message:', err);
                 }
             };
+
             ws.onclose = () => {
                 console.log('WebSocket closed — retrying in 2s');
                 setTimeout(setupWebsocket, 2000);
@@ -369,7 +455,7 @@ const MusicPlayer = () => {
             });
     };
 
-    // Sync audio playback position with optimized preloading
+    // Enhanced audio playback synchronization with preloaded tracks
     useEffect(() => {
         if (currentTrackIndex === null || elapsedTime === null) return;
 
@@ -399,6 +485,9 @@ const MusicPlayer = () => {
 
             // Remove the used preloaded track
             preloadedTracks.current.delete(currentTrackIndex);
+
+            // Start preloading the next tracks in a more intelligent order
+            smartPreloadNextTracks();
         } else if (audioRef.current?.audio.current) {
             // No preloaded track, fallback to normal loading
             const audio = audioRef.current.audio.current;
@@ -409,18 +498,9 @@ const MusicPlayer = () => {
                     safePlayAudio(audio);
                 }
             }
-        }
 
-        // Start preloading the next tracks immediately
-        if (tracks.length > 0) {
-            const nextIndex = (currentTrackIndex + 1) % tracks.length;
-            preloadTrack(nextIndex);
-
-            // Preload the track after next for even smoother experience
-            setTimeout(() => {
-                const nextNextIndex = (currentTrackIndex + 2) % tracks.length;
-                preloadTrack(nextNextIndex);
-            }, 500);
+            // If this track wasn't preloaded, we should start preloading aggressively
+            smartPreloadNextTracks();
         }
     }, [currentTrackIndex, elapsedTime, isPlaying, isManuallyPaused, tracks.length]);
 
@@ -444,6 +524,9 @@ const MusicPlayer = () => {
                     audio.currentTime = d.elapsedTime;
                     safePlayAudio(audio);
                 }
+
+                // Also start preloading upcoming tracks
+                smartPreloadNextTracks();
             } catch (e) {
                 console.error('Error during play fetch:', e);
             }
