@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import http from 'http';
 import setupWebSocket from './websocket.js';
 import sequelize from './db.js';
 import tracksRoutes from './routes/tracks.js';
@@ -12,6 +13,8 @@ import { parseStream } from 'music-metadata'; // For audio metadata
 
 const app = express();
 const port = 3010;
+// Store loaded tracks in memory for faster access
+let loadedTracks = [];
 
 app.use(cors({
     origin: '*',
@@ -25,6 +28,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/artists', artistsRoutes);
 app.use('/api/wishes', wishesRoutes);
 
+// Initialize database connection
 const startDatabase = async () => {
     try {
         await sequelize.authenticate();
@@ -59,18 +63,30 @@ async function computeTrackDuration(track) {
 }
 
 // Load tracks from the database and compute duration if not set
+// Also stores tracks in memory for faster access
 async function loadTracks() {
     const tracksFromDB = await Track.findAll({ order: [['order', 'ASC']] });
     const newTracks = tracksFromDB.map(track => track.get({ plain: true }));
+
     for (const track of newTracks) {
         if (!track.duration) {
             const duration = await computeTrackDuration(track);
             track.duration = (duration && duration > 0) ? Math.floor(duration) : 200;
             console.log(`Track "${track.name}" duration: ${track.duration} sec.`);
+
+            // Update duration in the database
+            const dbTrack = await Track.findByPk(track.id);
+            if (dbTrack) {
+                dbTrack.duration = track.duration;
+                await dbTrack.save();
+            }
         } else {
             console.log(`Track "${track.name}" duration: ${track.duration} sec.`);
         }
     }
+
+    // Save tracks in memory for quick access
+    loadedTracks = newTracks;
     return newTracks;
 }
 
@@ -178,6 +194,7 @@ export async function reorderTracksByLikes() {
                     artistId: track.artistId,
                     group: track.group,
                     isDuplicate: true,
+                    duration: track.duration, // Copy duration to duplicate
                 });
                 duplicateA1.push(dup1);
                 const dup2 = await Track.create({
@@ -188,6 +205,7 @@ export async function reorderTracksByLikes() {
                     artistId: track.artistId,
                     group: track.group,
                     isDuplicate: true,
+                    duration: track.duration, // Copy duration to duplicate
                 });
                 duplicateA2.push(dup2);
             } catch (dupError) {
@@ -207,6 +225,7 @@ export async function reorderTracksByLikes() {
                     artistId: track.artistId,
                     group: track.group,
                     isDuplicate: true,
+                    duration: track.duration, // Copy duration to duplicate
                 });
                 duplicateB.push(dup);
             } catch (dupError) {
@@ -249,100 +268,187 @@ export async function reorderTracksByLikes() {
             await track.save();
         }
         console.log("Tracks reordered by likes and groups successfully.");
+
+        // Reload tracks after reordering
+        await loadTracks();
     } catch (error) {
         console.error("Error in reorderTracksByLikes:", error);
         throw error;
     }
 }
 
+// Global variables to track the current playback state
 let currentTrackIndex = 0;
 let currentTrackStartTime = Date.now();
 let trackSwitchTimeout = null;
 let wssInstance = null;
 
-// Function to broadcast current track info to all clients
-function broadcastCurrentTrack() {
-    const elapsedTime = (Date.now() - currentTrackStartTime) / 1000;
-    if (wssInstance) {
-        wssInstance.clients.forEach((client) => {
-            if (client.readyState === client.OPEN) {
-                client.send(JSON.stringify({
-                    type: 'currentTrack',
-                    trackIndex: currentTrackIndex,
-                    elapsedTime: elapsedTime
-                }));
-            }
-        });
+// Function to advance to the next track when current track ends
+function scheduleNextTrack() {
+    if (trackSwitchTimeout) {
+        clearTimeout(trackSwitchTimeout);
     }
+
+    // Get current track and its duration
+    if (!loadedTracks || loadedTracks.length === 0 || currentTrackIndex >= loadedTracks.length) {
+        console.warn("Cannot schedule next track: track list is empty or index out of bounds");
+        return;
+    }
+
+    const currentTrack = loadedTracks[currentTrackIndex];
+    if (!currentTrack) {
+        console.error(`No track found at index ${currentTrackIndex}`);
+        return;
+    }
+
+    // Get track duration (with a 3-second buffer to ensure complete playback)
+    const trackDuration = (currentTrack.duration || 200) + 3;
+    const currentElapsedTime = (Date.now() - currentTrackStartTime) / 1000;
+
+    // Calculate remaining time before next track
+    let remainingTime = trackDuration - currentElapsedTime;
+    if (remainingTime <= 0) {
+        // If we've already passed the track duration, switch immediately
+        console.log(`Track ${currentTrack.name} has already finished, switching immediately`);
+        playNextTrack();
+        return;
+    }
+
+    console.log(`Scheduling next track in ${remainingTime.toFixed(2)} seconds`);
+    trackSwitchTimeout = setTimeout(playNextTrack, remainingTime * 1000);
+}
+
+// Function to play the next track in sequence
+async function playNextTrack() {
+    let nextTrackIndex = currentTrackIndex + 1;
+
+    // If we've reached the end of the playlist, either loop or reorder
+    if (nextTrackIndex >= loadedTracks.length) {
+        console.log("End of playlist reached, reordering tracks");
+        await reorderTracksByLikes();
+        nextTrackIndex = 0;
+    }
+
+    startTrack(nextTrackIndex);
+}
+
+// Function to broadcast current track info to all connected clients
+function broadcastCurrentTrack() {
+    if (!wssInstance) return;
+
+    // Get current track
+    const currentTrack = loadedTracks[currentTrackIndex];
+    if (!currentTrack) return;
+
+    // Calculate elapsed time
+    let elapsedTime = (Date.now() - currentTrackStartTime) / 1000;
+
+    // Ensure elapsed time doesn't exceed track duration
+    if (currentTrack.duration && elapsedTime > currentTrack.duration) {
+        // If elapsed time exceeds duration, cap it at duration
+        elapsedTime = currentTrack.duration;
+
+        // If we've exceeded the track duration, schedule the next track
+        if (!trackSwitchTimeout) {
+            console.log(`Track ${currentTrack.name} has finished, scheduling next track`);
+            scheduleNextTrack();
+        }
+    }
+
+    // Broadcast to all connected clients
+    wssInstance.clients.forEach(client => {
+        if (client.readyState === client.OPEN) {
+            client.send(JSON.stringify({
+                type: 'currentTrack',
+                trackIndex: currentTrackIndex,
+                elapsedTime: elapsedTime
+            }));
+        }
+    });
 }
 
 // Function to start playing a track by its index
 async function startTrack(index) {
+    // Ensure tracks are loaded
+    if (loadedTracks.length === 0) {
+        await loadTracks();
+    }
+
+    // Validate track index
+    if (index >= loadedTracks.length) {
+        console.error(`Invalid track index: ${index}, max is ${loadedTracks.length - 1}`);
+        index = 0;
+    }
+
+    console.log(`Starting track at index ${index}: "${loadedTracks[index]?.name}"`);
+
+    // Update current track info
     currentTrackIndex = index;
     currentTrackStartTime = Date.now();
+
+    // Broadcast to all clients
     broadcastCurrentTrack();
 
-    if (trackSwitchTimeout) clearTimeout(trackSwitchTimeout);
-    let tracks = await loadTracks();
-
-    // Reorder tracks if the current index exceeds the list length
-    if (currentTrackIndex >= tracks.length) {
-        await reorderTracksByLikes();
-        tracks = await loadTracks();
-        currentTrackIndex = 0;
-    }
-
-    const currentTrack = tracks[currentTrackIndex];
-    if (!currentTrack) {
-        console.error(`No track found for index ${currentTrackIndex}`);
-        return;
-    }
-
-    // Add a small buffer to the duration to ensure complete playback
-    // This prevents the next track signal from coming too early
-    const durationWithBuffer = (currentTrack.duration || 200) + 3; // 3-second buffer
-    const delay = durationWithBuffer * 1000;
-
-    console.log(
-        `Now playing "${currentTrack.name}" (order: ${currentTrack.order}) with duration ${currentTrack.duration} sec. Adding 3-sec buffer. Next track in ${delay} ms.`
-    );
-
-    trackSwitchTimeout = setTimeout(async () => {
-        let nextIndex = currentTrackIndex + 1;
-
-        if (nextIndex >= tracks.length) {
-            // Call the reorder route when the last track finishes
-            try {
-                const response = await fetch(`${process.env.VITE_BACKEND_URL}/api/tracks/reorder`, {
-                    method: 'POST',
-                });
-                if (!response.ok) {
-                    throw new Error('Failed to reorder tracks');
-                }
-                const updatedTracks = await response.json();
-                console.log('Tracks reordered:', updatedTracks);
-                tracks = updatedTracks;
-                nextIndex = 0;
-            } catch (error) {
-                console.error('Error reordering tracks:', error);
-            }
-        }
-        startTrack(nextIndex);
-    }, delay);
+    // Schedule the next track
+    scheduleNextTrack();
 }
 
-const server = app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
-});
+// Create HTTP server
+const httpServer = http.createServer(app);
 
-wssInstance = setupWebSocket(server, {
+// Initialize WebSocket server
+wssInstance = setupWebSocket(httpServer, {
     getCurrentTrackIndex: () => currentTrackIndex,
     getCurrentTrackStartTime: () => currentTrackStartTime,
+    getTracks: () => loadedTracks
 });
 
-startTrack(0);
+// Start HTTP server
+httpServer.listen(port, async () => {
+    console.log(`Server running at http://localhost:${port}`);
 
+    // Load tracks at startup
+    await loadTracks();
+
+    // Start playing from the first track
+    startTrack(0);
+
+    // Set up periodic broadcast to keep clients in sync
+    setInterval(broadcastCurrentTrack, 10000);
+});
+
+// REST API endpoint to get current track info
 app.get('/current-time', (req, res) => {
-    const elapsedTime = (Date.now() - currentTrackStartTime) / 1000;
-    res.json({ trackIndex: currentTrackIndex, elapsedTime });
+    // Get current track
+    const currentTrack = loadedTracks[currentTrackIndex];
+    if (!currentTrack) {
+        return res.status(404).json({ error: 'No track currently playing' });
+    }
+
+    // Calculate elapsed time
+    let elapsedTime = (Date.now() - currentTrackStartTime) / 1000;
+
+    // Ensure elapsed time doesn't exceed track duration
+    if (currentTrack.duration && elapsedTime > currentTrack.duration) {
+        elapsedTime = currentTrack.duration;
+    }
+
+    res.json({
+        trackIndex: currentTrackIndex,
+        elapsedTime,
+        trackDuration: currentTrack.duration || null,
+        trackName: currentTrack.name
+    });
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received. Shutting down gracefully...');
+    if (trackSwitchTimeout) {
+        clearTimeout(trackSwitchTimeout);
+    }
+    httpServer.close(() => {
+        console.log('HTTP server closed.');
+        process.exit(0);
+    });
 });
