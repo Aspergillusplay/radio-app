@@ -1,0 +1,53 @@
+@startuml
+
+title Komponentový diagram nasadenia – Docker Compose & Nginx
+
+!define RECTANGLE class
+skinparam node {
+BackgroundColor<<nginx>> #B7E1CD
+BackgroundColor<<backend>> #F9CB9C
+BackgroundColor<<db>> #CFE2F3
+BackgroundColor<<frontend>> #D9EAD3
+BackgroundColor<<minio>> #FFF2CC
+FontColor black
+}
+skinparam storage {
+BackgroundColor<<vol_db>> #B4C6E7
+BackgroundColor<<vol_minio>> #FFE59A
+BackgroundColor<<vol_frontend>> #B6D7A8
+FontColor black
+}
+
+actor Klient
+
+' Bare-metal host
+node "Hostiteľ\n(Bare-metal)" as Host {
+node "Nginx\nSSL terminácia\n(reverse proxy,\nserves static)" <<nginx>> as Nginx
+
+cloud "Docker Network\n(app-network)" {
+ node "Backend\n(App logic)" <<backend>> as Backend
+ node "MinIO\n(Object storage)" <<minio>> as Minio
+ database "DB\n(PostgreSQL)" <<db>> as DB
+ rectangle "Frontend static\n/var/www/build" <<frontend>> as Static
+}
+
+' Volumes
+storage "postgres-data (volume)" <<vol_db>> as V1
+storage "minio-data (volume)" <<vol_minio>> as V2
+storage "/var/www/build\n(host dir)" <<vol_frontend>> as V3
+
+DB <-left- V1 : persistencia
+Minio <-left- V2 : object data
+Static <-left- V3 : React build
+}
+
+' Toky požiadaviek a cesty
+Klient --> Nginx : HTTPS/SSL požiadavky
+Nginx --> Backend : "/api" (proxy API)
+Nginx --> Minio : "/minio" (proxy S3 API)
+Nginx --> Static : "/ (statika z React build)"
+
+Backend --> DB : SQL traffic (Docker net)
+Backend --> Minio : S3 Client (Docker net)
+
+@enduml

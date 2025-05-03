@@ -91,8 +91,8 @@ legend right
   <b>Legenda:</b>
   |= Typ |= Význam |
   | <color #2E8B57>Zelená správa</color> | Úspešná odpoveď |
-  | <#F0F8FF>Modrá poznámka</color> | Výpočtový proces |
-  | <#F0F0F0>Šedá poznámka</color> | Dátové informácie |
+  | <#F0F8FF>Modrá poznámka | Výpočtový proces |
+  | <#F0F0F0>Šedá poznámka | Dátové informácie |
 endlegend
 
 @enduml
