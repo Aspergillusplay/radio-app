@@ -180,7 +180,7 @@ function broadcastTrackPreloaded(trackIndex) {
  * Loads tracks from database and computes durations if needed
  * @returns {Promise<Array>} - Array of track objects
  */
-async function loadTracks() {
+export async function loadTracks() {
     const tracksFromDB = await Track.findAll({ order: [['order', 'ASC']] });
     const newTracks = tracksFromDB.map(track => track.get({ plain: true }));
 

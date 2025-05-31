@@ -6,6 +6,7 @@ import Artist from '../models/artist.js';
 import TrackLike from '../models/likes.js';
 import minioClient from '../clients/minioClient.js';
 import { reorderTracksByLikes } from '../server.js';
+import { loadTracks } from '../server.js';
 
 const router = express.Router();
 
@@ -345,11 +346,13 @@ router.post('/queue-next/:id', async (req, res) => {
             order: [['order', 'ASC']]
         });
 
-        // Find the current playing track and the selected track
-        const currentTrack = tracks.find(t => t.order === currentTrackIndex);
+        // Find the current playing track by its ID from the data returned by current-time
+        const currentTrackId = data.trackId;
+        const currentTrack = tracks.find(t => t.id === currentTrackId);
         const selectedTrack = tracks.find(t => t.id === trackId);
 
         if (!currentTrack) {
+            console.error(`Current track with ID ${currentTrackId} not found`);
             return res.status(404).json({ error: 'Current track not found' });
         }
 
@@ -390,6 +393,10 @@ router.post('/queue-next/:id', async (req, res) => {
 
             await track.save();
         }
+
+        // Reload tracks to update the server's in-memory track list
+        await loadTracks();
+        console.log('Tracks reloaded after queue-next operation');
 
         res.status(200).json({ message: 'Track queued as next to play' });
     } catch (error) {
